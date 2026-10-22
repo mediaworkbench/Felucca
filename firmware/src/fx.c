@@ -1077,16 +1077,23 @@ static void c1_parts(uint32_t arg)                      /* arg: the parts (bit k
 }
 
 /* which parts go to the second core: the split of the last block's costs that leaves the busier core the least; none
- * when that saves less than handing them over costs (C1_HAND) */
+ * when that saves less than handing them over costs (C1_HAND). A 303 stays on this core: its float code is
+ * the one thing no second core has run on a device (X0X's core 1 renders the integer drums only, its 303s are core
+ * 0's); the part counts as a 303 from its request (eng_req) as the block that switches it starts the engine */
 #define C1_HAND 40u
 static uint32_t mix_split(void)
 {
-    uint32_t m, i, best = 0, all = 0, lo;
-    for (i = 0; i < NPART; i++)
+    uint32_t m, i, best = 0, all = 0, lo, pin = 0;
+    for (i = 0; i < NPART; i++) {
         all += part_cost[i];
+        if (trk[i].engine % NENGINES == ENGI_303 || trk[i].eng_req % NENGINES == ENGI_303)
+            pin |= 1u << i;
+    }
     lo = all;
     for (m = 1; m < (1u << NPART) - 1u; m++) {
         uint32_t a = 0, w;
+        if (m & pin)
+            continue;
         for (i = 0; i < NPART; i++)
             if (m >> i & 1u)
                 a += part_cost[i];

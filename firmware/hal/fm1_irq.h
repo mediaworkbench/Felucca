@@ -47,6 +47,9 @@ typedef struct {
 #if FM1_CPU1_USED
     uint32_t core;                           /* 1 = the second core's (its sp on its stacks, hal/fm1_cpu1.h) */
 #endif
+    uint32_t usp, ssp;                       /* the main loop's stack pointer and the interrupts' */
+    uint32_t stk[3];                         /* the main loop's stack at usp - 4, usp - 8, usp + 20 (0: usp outside it):
+                                              * what a return there popped, and the frame above it */
 } fm1_crash_t;
 /* Not static: .noinit holds whatever the last run (or power-on) left, and a
  * file-local object would let the compiler assume its zero initial value and
@@ -54,6 +57,7 @@ typedef struct {
 fm1_crash_t fm1_crash __attribute__((section(".noinit")));
 
 extern const char fm1_fatal_stubs[];
+extern char _ustack_lo[], _ustack_top[];      /* app.ld: the main loop's stack (the crash record's stk) */
 static void fm1_fault(const fm1_crash_t *c);   /* application: report, then reset */
 
 static void fm1_irq_init(void)
@@ -72,8 +76,11 @@ static void fm1_irq_init(void)
     /* div0 trap off (cleared, in case a reset kept it from a build that armed it): this compiler treats a
      * divide as harmless and runs a loop-invariant one ahead of the test that guards it (#61: fm4_convert at boot, after PR #111 by spinkham),
      * and the build has some 300 divides by a register. Off, such a divide gives a value nobody uses; the cost:
-     * a real divide by 0 gives a wrong value instead of a crash report (the host tests trap on one) */
-    FM1_EMU_CON &= ~(1u << 2);
+     * a real divide by 0 gives a wrong value instead of a crash report (the host tests trap on one).
+     * Bits 16..20 off too: the FPU's exception traps (as core 1 has them, hal/fm1_cpu1.h, and Melodee its core 0).
+     * On, the 303's float DSP (eng_303.c, in the audio ISR) crashed on an ordinary IEEE result: an underflow in
+     * its drive's tail (x0x/bass303.c drive_block, more often while CUT moves), the IEEE default value is right */
+    FM1_EMU_CON &= ~((1u << 2) | (0x1Fu << 16));
     FM1_ETM_CON |= 1u;                                      /* branch trace for the report */
 }
 
@@ -84,6 +91,18 @@ static void fm1_irq_attach(uint32_t n, void (*h)(void), uint32_t prio)   /* IRQs
     FM1_ICFG(n) = (FM1_ICFG(n) & ~(0xFu << sh)) | ((((prio & 7u) << 1) | 1u) << sh);
 }
 static void fm1_irq_mask(uint32_t n) { FM1_ICFG(n) &= ~(1u << ((n & 7u) * 4u)); }
+/* source n held off / let through again (its ICFG enable bit; the csync: from the next instruction on). From the
+ * audio ISR: eng_303.c holds TIMER5 off while the 303's float code runs */
+static inline void fm1_irq_hold(uint32_t n)
+{
+    FM1_ICFG(n) &= ~(1u << ((n & 7u) * 4u));
+    __asm__ volatile("csync" ::: "memory");
+}
+static inline void fm1_irq_release(uint32_t n)
+{
+    FM1_ICFG(n) |= 1u << ((n & 7u) * 4u);
+    __asm__ volatile("csync" ::: "memory");
+}
 
 static void fm1_irq_enable_all(void)
 {
@@ -140,6 +159,15 @@ void fm1_fault_c(uint32_t *f)
     fm1_crash.uptime_ms = *(volatile uint32_t *)0x10804u / 24000u;   /* TIMER4 since boot */
     for (i = 0; i < 4u; i++)
         fm1_crash.etm[i] = FM1_ETM_PC(i);
+    fm1_crash.usp = f[22];
+    fm1_crash.ssp = f[23];
+    {
+        uint32_t u = f[22];
+        int ok = !(u & 3u) && u >= (uint32_t)(uintptr_t)_ustack_lo + 8u && u <= (uint32_t)(uintptr_t)_ustack_top - 24u;
+        fm1_crash.stk[0] = ok ? *(volatile uint32_t *)(u - 4u) : 0u;
+        fm1_crash.stk[1] = ok ? *(volatile uint32_t *)(u - 8u) : 0u;
+        fm1_crash.stk[2] = ok ? *(volatile uint32_t *)(u + 20u) : 0u;
+    }
     fm1_crash.early = fm1_crash.uptime_ms < 3000u ? early + 1u : 0u;
 #if FM1_CPU1_USED
     fm1_crash.core = 0;

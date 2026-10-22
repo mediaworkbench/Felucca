@@ -26,6 +26,9 @@ static void host_isr(void);
 static void fm1_irq_off(void) { host_irq_mask = 1; }
 static void fm1_irq_on(void) { host_irq_mask = 0; if (host_irq_pend) { host_irq_pend = 0; host_isr(); } }
 static void fm1_icfg_set(uint32_t f) { if (f) host_irq_mask = 1; else fm1_irq_on(); }
+#define FM1_IRQ_TIMER5 63u                  /* eng_303.c holds the scan off (not emulated: no TIMER5 here) */
+static void fm1_irq_hold(uint32_t n) { (void)n; }
+static void fm1_irq_release(uint32_t n) { (void)n; }
 #endif
 #include "ui_test.c"
 #ifdef PREEMPT

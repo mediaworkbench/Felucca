@@ -14,8 +14,10 @@
  * 6. the voice ends after the release (the 303 quiet), the core idles after its hold-off (cheap).
  * 7. lite (the overload guard, audio.c / t303_shed): a sounding 303 first, one a time, none when silent; its level
  *    within 1.5 dB of 2x; t303_calm: all back.
- * 8. level: the ACID pattern's RMS: the ACID preset (RAT) within 2 dB of ANALOG's ACID, CLASSIC (no drive) within 9 dB;
- *    DRV's make-up (eng_303.c T303_COMP): SOFT 0 .. 127 and RAT 16 .. 127 each within 1.5 dB.
+ * 8. level: the ACID pattern's RMS (LVL 80: under the master limiter, which evens out what it measures): the ACID
+ *    preset (RAT) within 2 dB of ANALOG's and of DCO's median preset (1.6.1: until then of ANALOG's ACID, ~6 dB under
+ *    them), CLASSIC (no drive) within 9 dB of it; DRV's make-up (eng_303.c T303_COMP): SOFT 0 .. 127 and RAT 16 .. 127
+ *    each within 1.5 dB.
  * 9. determinism: the same state renders the same samples again (every preset).
  * 10. demos into DEMODIR: every preset on the ACID pattern; ACID on X0X's default TB-3PO line. */
 #define main hostsim_main
@@ -102,7 +104,7 @@ static int ref_block(uint32_t n, int32_t *diff)   /* the engine's block against 
     block();
     bass303_render(&ref, fb, CTL);
     for (k = 0; k < CTL; k++) {
-        int32_t x = (int32_t)fm_clampf(fb[k] * T303(&trk[0])->gain, -T303_PEAK, T303_PEAK);
+        int32_t x = soft_knee((int32_t)fm_clampf(fb[k] * T303(&trk[0])->gain, -T303_HOT, T303_HOT), T303_KNEE);
         if (x != T303(&trk[0])->buf[k]) {
             same = 0;
             if (diff && !*diff)
@@ -341,6 +343,7 @@ static double pattern_rms_d(uint32_t e, uint32_t pi, int drv, int ty)
         trk[0].p[P_E7] = (int16_t)ty;
     }
     trk[0].p[P_DIST] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;
+    trk[0].p[P_LEVEL] = 80;                         /* (under the limiter: at 104 it takes 3 dB off CLASSIC's spikes) */
     for (s = 0; s < 32u; s++) {
         uint32_t k = s % 16u, note = PATTERNS[0].note[k], fl = PATTERNS[0].flags[k];
         trk[0].slide_glide = (uint8_t)(held && (PATTERNS[0].flags[(k + 15u) % 16u] & 2u));
@@ -362,15 +365,27 @@ static double pattern_rms_d(uint32_t e, uint32_t pi, int drv, int ty)
     }
     return sqrt(sum / n);
 }
+static double median_rms(uint32_t e)            /* the engine's presets on the ACID pattern: the median RMS */
+{
+    double v[32], x;
+    uint32_t n = ENGINES[e]->npresets < 32u ? ENGINES[e]->npresets : 32u, i, j;
+    for (i = 0; i < n; i++) {
+        x = pattern_rms(e, i);
+        for (j = i; j > 0 && v[j - 1] > x; j--)
+            v[j] = v[j - 1];
+        v[j] = x;
+    }
+    return n & 1u ? v[n / 2u] : sqrt(v[n / 2u - 1u] * v[n / 2u]);
+}
 static void level(void)
 {
-    double a = pattern_rms(ENGI_303, 0), b = pattern_rms(0, 4), c = pattern_rms(ENGI_303, 1), d = 20.0 * log10(a / b);
+    double a = pattern_rms(ENGI_303, 0), b = median_rms(0), c = median_rms(ENGI_DCO), d = pattern_rms(ENGI_303, 1);
     double lo[2] = {1e9, 1e9}, hi[2] = {0, 0}, x;
     int ty, dv;
-    printf("t303: level: 303 ACID %.0f (%.1f dB), CLASSIC %.0f (%.1f dB) against ANALOG ACID %.0f RMS\n", a, d, c,
-           20.0 * log10(c / b), b);
-    check("level: the 303's ACID (RAT) within 2 dB of ANALOG's ACID, CLASSIC (no drive) within 9 dB",
-          fabs(d) < 2.0 && fabs(20.0 * log10(c / b)) < 9.0);
+    printf("t303: level: 303 ACID %.0f RMS, %.1f dB against ANALOG's median preset (%.0f), %.1f dB against DCO's (%.0f); "
+           "CLASSIC %.1f dB\n", a, 20.0 * log10(a / b), b, 20.0 * log10(a / c), c, 20.0 * log10(d / a));
+    check("level: the 303's ACID (RAT) within 2 dB of ANALOG's and DCO's median preset, CLASSIC (no drive) within 9 dB",
+          fabs(20.0 * log10(a / b)) < 2.0 && fabs(20.0 * log10(a / c)) < 2.0 && fabs(20.0 * log10(d / a)) < 9.0);
     for (ty = 0; ty < 2; ty++)
         for (dv = ty ? 16 : 0; dv <= 127; dv += 9) {
             x = pattern_rms_d(ENGI_303, 1, dv, ty);

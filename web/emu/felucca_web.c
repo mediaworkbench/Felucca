@@ -208,9 +208,9 @@ static void fl_plain_window_init(void) {}
 
 /* ------------------------------------------------- main.c and its HAL --- */
 #if FELUCCA_CPU2
-typedef struct { uint32_t magic, count, vec, pc, emu, dbg, rets, core; } fm1_crash_t;
+typedef struct { uint32_t magic, count, vec, pc, emu, dbg, rets, sp, psr, etm[4], core, usp, ssp, stk[3]; } fm1_crash_t;
 #else
-typedef struct { uint32_t magic, count, vec, pc, emu, dbg, rets; } fm1_crash_t;
+typedef struct { uint32_t magic, count, vec, pc, emu, dbg, rets, sp, psr, etm[4], usp, ssp, stk[3]; } fm1_crash_t;
 #endif
 #define FM1_CRASH_MAGIC 0x43525348u
 static fm1_crash_t fm1_crash;                     /* (none: main.c boot_leds runs the sweep) */

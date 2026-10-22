@@ -82,16 +82,16 @@ static void fm1_fault(const fm1_crash_t *c)
     scr_wake_now();                                   /* (MENU > SCREEN OFF: the panel on first) */
     lcd_fill(0, 0, 240, 240, UI_CRASH_BG);            /* fixed, outside the palettes */
     draw_text_line(0, 8, 240, &AF_M, "FELUCCA CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
-    hexs(b, c->vec);
-    draw_text_line(10, 40, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
-    hexs(b, c->pc);
-    draw_text_line(10, 60, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
-    hexs(b, c->emu);
-    draw_text_line(10, 84, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
-    hexs(b, c->dbg);
-    draw_text_line(10, 102, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
-    hexs(b, c->rets);
-    draw_text_line(10, 120, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    {   /* two columns, top to bottom. Left: vec pc emu dbg rets sp psr ssp; right: usp, the main loop's stack at
+         * usp - 4, usp - 8 and usp + 20, the ETM's four branch PCs (etm[0..3]) */
+        const uint32_t v[16] = {c->vec, c->pc, c->emu, c->dbg, c->rets, c->sp, c->psr, c->ssp,
+                                c->usp, c->stk[0], c->stk[1], c->stk[2], c->etm[0], c->etm[1], c->etm[2], c->etm[3]};
+        uint32_t k;
+        for (k = 0; k < 16u; k++) {
+            hexs(b, v[k]);
+            draw_text_line(k < 8u ? 10 : 126, 40 + 18 * (k & 7u), 104, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+        }
+    }
     t0 = fm1_ticks();
     while ((uint32_t)(fm1_ticks() - t0) < 4000u * 1000u * FM1_TICKS_PER_US)
         ;

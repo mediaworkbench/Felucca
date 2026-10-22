@@ -38,12 +38,16 @@
 #undef recip
 
 #define T303_MAGIC 0x33303301u
-#define T303_GAIN 100800.0f      /* the core's output (VOLUME 96: peaks near 0.5) x 4.2 VOICE_FS: an undriven line's peaks
-                                  * as ANALOG ACID's (its crest ~25 dB: the resonance) */
+#define T303_GAIN 201600.0f      /* the core's output (VOLUME 96: peaks near 0.5) x 8.4 VOICE_FS: a RAT preset's RMS as
+                                  * ANALOG's and DCO's median preset's, the undriven ones' ~7 dB under (their crest, ~25
+                                  * dB: the resonance). Until 1.6.1 x 4.2 (as ANALOG ACID's, ~6 dB under the others) */
+#define T303_KNEE 72000          /* 3 x VOICE_FS: above it the accented resonance's spikes go softly into the knee
+                                  * (soft_knee: 88383 at most, under T303_PEAK), not into the clamp */
+#define T303_HOT 1048576.0f      /* the knee's input bound (|y| - k < 2^30) */
 #define T303_PEAK 131071.0f      /* (t303_render: >> 1 before the amplitude, Q15) */
 /* DRV's level, made up (X0X makes it up in its mixer): the core's gain x this, by DTYP (SOFT, RAT) and DRV 0, 8 .. 128
- * (linear between). SOFT: the undriven level (its saturation falls ~6 dB to DRV 127); RAT (+13 .. +19 dB from DRV 8): an
- * ANALOG ACID's from DRV 16, half way at 8. Measured: tests/t303_test.c level (the ACID pattern's RMS) */
+ * (linear between). SOFT: the undriven level (its saturation falls ~6 dB to DRV 127); RAT (+13 .. +19 dB from DRV 8): ~7 dB
+ * over the undriven level from DRV 16 (T303_GAIN: the median preset's of ANALOG and DCO), half way at 8. Measured: tests/t303_test.c level (the ACID pattern's RMS) */
 static const float T303_COMP[2][17] = {
     {1.0000f, 1.0253f, 1.0296f, 1.0369f, 1.0473f, 1.0626f, 1.0831f, 1.1128f, 1.1496f, 1.1987f, 1.2586f, 1.3321f,
      1.4202f, 1.5272f, 1.6516f, 1.7936f, 1.9415f},
@@ -116,7 +120,7 @@ static float t303_gain(uint32_t drv, uint32_t type)
 }
 
 /* once a block (voice.c track_render, before the voice): the parameters, the notes, the core's block */
-static void t303_block(track_t *t)
+static void t303_block_f(track_t *t)
 {
     t303_t *s = T303(t);
     bass303_t *b = &s->b;
@@ -172,13 +176,28 @@ static void t303_block(track_t *t)
     }
     bass303_render(b, s->fb, CTL);
     for (k = 0; k < CTL; k++) {
-        x = (int32_t)fm_clampf(s->fb[k] * s->gain, -T303_PEAK, T303_PEAK);
+        x = soft_knee((int32_t)fm_clampf(s->fb[k] * s->gain, -T303_HOT, T303_HOT), T303_KNEE);
         s->buf[k] = x;
         x = x < 0 ? -x : x;
         if (x > pk)
             pk = x;
     }
     s->peak = pk;
+}
+
+/* the float code with TIMER5 held off: the scan nesting into the audio ISR while a 303 played crashed the FM-1 (the
+ * main loop resumed on the interrupt stack, or a return took a stale saved address, once right after an FPU
+ * instruction); with TIMER5 at ALNK0's level (no nesting) it did not. Its enable bit, not cli, which held it off too
+ * little. A block is ~0.1 ms: the scan's tick waits that long at most. The host tests and the emulator: no interrupts */
+static void t303_block(track_t *t)
+{
+#if defined(FM1_IRQ_TARGET)
+    fm1_irq_hold(FM1_IRQ_TIMER5);
+#endif
+    t303_block_f(t);
+#if defined(FM1_IRQ_TARGET)
+    fm1_irq_release(FM1_IRQ_TIMER5);
+#endif
 }
 
 static void t303_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
