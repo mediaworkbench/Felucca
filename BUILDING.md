@@ -78,6 +78,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_SLICE` | 1 | the SLICE engine (`0`: engine 13 reserved, so DCO stays 14) |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_303` | 1 | the 303 engine (X0X's Open303, `firmware/src/eng_303.c`, `x0x/`) and TB-3PO, its ARP (`0`: engine 15 reserved, no float code) |
+| `FELUCCA_AICD` | 1 | TB-3PO's MODE AICD: Aicd's acid line model (`assets/aicd/lm.js`, ~24 KB of flash as `build/gen/felucca_aicd.h` by `tools/gen_aicd.py`); `0`: no MODEL page, TB-3PO's own lines only |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion (a test build: the DCO and 303 engines are left out, the EDIT layer has room for 15) |
 
 `FELUCCA_USB_LAYOUT` (`0` to `3`, default `0`) picks other USB descriptor layouts for testing; see

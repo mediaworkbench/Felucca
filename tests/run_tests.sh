@@ -185,6 +185,10 @@
 #                   it: every draw's rounding, 40000 lines, MUTATE chains, new seeds; the steps (a MUTATE writes only what
 #                   it changes), a project's FM6 area; the UI (ARP on a 303 track: GENERATE / SCALE, OCT+ / OCT-, the
 #                   knobs, undo, a song refuses), the arp inert there, auto MUTATE in the sequencer, a project round trip.
+#                   MODE AICD (1.6.2): Aicd's model in flash against tools/gen_aicd.py's exact one (every edge, the odds
+#                   within rounding), a draw's odds, its lines as Aicd's own sampler's (gate, accent, slide, key), the
+#                   DENS ACCENT SLIDE (0..100 %, fitted) and TEMP, MUTATE's run, the cost, the UI, auto MUTATE, a project, the same lines (a hash);
+#                   again with FELUCCA_AICD=0 (X0X's lines only).
 # DIGITAL -> FM6 (tests/fm4_test.c, built with FELUCCA_FM4=1): the retired four-operator engine against its conversion
 #                   (src/fm4_convert.c): routes and carriers per algorithm, the presets' PTCH, and the sound (pitch,
 #                   centroid, RMS envelope) of its presets and algorithms; demos in build/fm4_demo/. tests/digital_test.c
@@ -449,7 +453,12 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "303: X0X's bass303 sample for sample (slides, accents), pitch, bend, bounds, voice end, lite, level, determinism, demos" \
         "$OUT/t303_test" build/t303_demo
     $CC -O2 -w -ffp-contract=off -Ibuild/gen -Ifirmware/src -o "$OUT/tb3po_test" tests/tb3po_test.c tests/ref/x0x_tb3po_ref.c -lm
-    run "TB-3PO: X0X's lines (every draw, 40000 lines, MUTATE chains), the steps, projects, the UI, auto MUTATE" "$OUT/tb3po_test"
+    python3 tools/gen_aicd.py "$OUT/felucca_aicd.h" "$OUT/aicd_ref.txt" >/dev/null
+    run "TB-3PO: X0X's lines (every draw, 40000 lines, MUTATE chains), the steps, projects, the UI, auto MUTATE; AICD" \
+        "$OUT/tb3po_test" "$OUT/aicd_ref.txt"
+    $CC -O2 -w -ffp-contract=off -DFELUCCA_AICD=0 -Ibuild/gen -Ifirmware/src -o "$OUT/tb3po_test_noaicd" tests/tb3po_test.c \
+        tests/ref/x0x_tb3po_ref.c -lm
+    run "TB-3PO, a FELUCCA_AICD=0 build: X0X's lines, no MODEL page" "$OUT/tb3po_test_noaicd"
     $CC -w -DFELUCCA_303=0 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_no303" tests/ui_test.c -lm
     run "UI, a FELUCCA_303=0 build: engine 15 reserved, the EDIT layer's keys as before the 303" "$OUT/ui_test_no303"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm

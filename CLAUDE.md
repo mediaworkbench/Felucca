@@ -96,7 +96,9 @@ Engine numbers are append-only (SLICE 13, DCO 14, 303 15); `NENGINES` is 16 in e
 with `FELUCCA_303=0` or with `FELUCCA_FM4=1` reserves its slot instead (`engines.c` `eng_ok` / `eng_stored_ok`), and
 the EDIT layer has keys for at most 15 engines plus INIT (`ui_layer.c` `LY_INIT < 16`; CLEAN INIT is the INIT dialog's
 KNOB 1). On a 303 track ARP opens TB-3PO (`ui_tb3po.c`: GENERATE / SCALE, OCT+ a new line, OCT- a MUTATE) instead of
-the arpeggiator (`seq.c` `arp_mode`); a project keeps its settings in that track's FM6 area (`tb3po.c` `tb3_pack`).
+the arpeggiator (`seq.c` `arp_mode`); a project keeps its settings in that track's FM6 area (`tb3po.c` `tb3_pack`). Its
+MODEL page's MODE AICD (`FELUCCA_AICD`) draws lines from Aicd's model (`assets/aicd/lm.js`, MIT, as it is; tables from
+`tools/gen_aicd.py`); TB-3PO's own lines stay X0X's exactly.
 
 **Stored formats and compatibility.** Projects (FUN1..FUN10, `project.c`), user presets (`upreset.c`), settings,
 the FM6 voice bank and the full backup live in NOR flash (`storage.c`, A/B copies, tested against torn writes and

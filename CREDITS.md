@@ -20,6 +20,7 @@ thanks the work below; each keeps its own licence (see [LICENSE](LICENSE), [LICE
   Devilfish ranges and the SOFT / RAT drive of [schwung-303](https://github.com/charlesvestal/schwung-303), as [X0X](https://github.com/charlesvestal/fm1-x0x)
   by [charlesvestal](https://github.com/charlesvestal) ported it to the FM-1; its TB-3PO line generator, from [schwung-tb3po](https://github.com/charlesvestal/schwung-tb3po),
   after the [Phazerville](https://github.com/djphazer/O_C-Phazerville) Hemisphere Suite's TB_3PO applet (djphazer and contributors) (GPL-3.0)
+- TB-3PO's AICD mode: the acid line model of [Aicd](https://github.com/mganss/Aicd) by Michael Ganss ([MIT](LICENSES/MIT-Aicd.txt)), as it is
 - Second core: its start, mailbox and guards from [X0X](https://github.com/charlesvestal/fm1-x0x) by [charlesvestal](https://github.com/charlesvestal)
   with the dual-core findings of [Melodee](https://github.com/keremimo/melodee) by [keremimo](https://github.com/keremimo); its audio split,
   measurements and hardening after [Jangada](https://github.com/zednaked/jangada) by [zednaked](https://github.com/zednaked) (all GPL-3.0)

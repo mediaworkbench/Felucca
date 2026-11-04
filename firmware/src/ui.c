@@ -426,7 +426,9 @@ static uint32_t layer_btn(void);
 static int page_visible(uint32_t i)
 {
     if (PAGES[i].fam == FAM_ARP)                      /* ARP: TB-3PO's pages on a 303 track, the arp's on another */
-        return (PAGES[i].graph == GR_TB3GEN || PAGES[i].graph == GR_TB3SCL) == (TSEL->eng_req % NENGINES == ENGI_303);
+        return (PAGES[i].graph == GR_TB3GEN || PAGES[i].graph == GR_TB3SCL || PAGES[i].graph == GR_TB3MOD) ==
+                   (TSEL->eng_req % NENGINES == ENGI_303) && (PAGES[i].graph != GR_TB3MOD || AICD_ON);   /* (MODEL:
+                                                                                         * AICD's, FELUCCA_AICD) */
     if (PAGES[i].scope == SC_TRACK && PAGES[i].id[0] >= P_LN0 && PAGES[i].id[0] <= P_LN7)
         return TSEL->eng_req % NENGINES == ENGI_DRUM;
     if (PAGES[i].id[0] == P_FTYPE)                    /* FILTER (1.5, #104): ANALOG's */

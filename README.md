@@ -35,7 +35,14 @@ Not released yet (the version string is still 1.6.1); build it from this branch 
   DENS, ACCENT, SLIDE, OCTS; SCALE: ROOT, SCALE, OCTAVE, MUTATE (every 1..16 passes of the line while playing, or OFF).
   OCT+ writes a new line into the track's 64 steps (notes, accents, slides, rests), OCT- mutates about 25 % of the steps.
   The steps stay normal, editable steps. An integer port of X0X's generator that makes the same line for the same seed
-  and settings (from the Phazerville Hemisphere Suite's TB_3PO applet).
+  and settings (from the Phazerville Hemisphere Suite's TB_3PO applet). A third page, MODEL, sets MODE to AICD: the lines
+  then come from [Aicd](https://github.com/mganss/Aicd)'s model (Michael Ganss, MIT), an n-gram trained on many ABL3
+  acid patterns, so each step follows the two before it as it did in those. In AICD, GENERATE is DENS, ACCENT, SLIDE (as in TB-3PO, 0..100 %: the share of the steps that are notes, and of
+  the notes accented or sliding; the defaults are the model's own) and TEMP (below 100 % the likelier lines, above it the rarer ones);
+  SCALE starts at CHRO (no bias) and otherwise favours the scale's notes; ROOT and OCTAVE transpose. The three leave the
+  model's lines as they are while they are within a step or so of what they say (so TEMP stays in charge), and past it
+  turn random steps on or off, only into steps the model has; 0 and 100 % are exact. OCT- draws a run of a quarter of the line
+  (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
 
 Compatibility: the engine order is append-only, so existing projects and sounds load unchanged and every earlier golden
 render is bit for bit as before. Firmware up to 1.6.1 resets the new DCO favourites setting (PER5) and shows projects that use

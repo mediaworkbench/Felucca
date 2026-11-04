@@ -773,7 +773,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_DETAIL_COND, S_DETAIL_FILL, S_AUTO_COND, S_GLO_FILL, S_SEQ_EUCLID, S_SEQ_EUCLID_DRUM, S_SEQ_EUCLID_64,
        S_MENU_SELECT, S_PROJECT_ERASE, S_CONFIRM_ERASE_PROJ, S_TOOLS_CLEAN, S_CONFIRM_CLEAN,
        S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD,
-       S_EDIT_303, S_TB3_GEN, S_TB3_SCL, S_TB3_STALE, S_TB3_HELP, S_CONFIRM_INIT, S_COUNT };
+       S_EDIT_303, S_TB3_GEN, S_TB3_SCL, S_TB3_STALE, S_TB3_HELP, S_TB3_MODEL, S_TB3_AICD, S_CONFIRM_INIT, S_COUNT };
 static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "message_key", "message_nofile", "presets", "presets_nofav", "user",
     "phrases", "project", "tools", "song_empty", "song", "step", "auto_steps", "auto_add_chance", "automation", "drum",
     "drum_hand", "drum_cym", "mixer", "mixer_from_home", "mixer_pan", "env", "env_dest", "lfo", "mod", "fx", "slicer", "dly", "scl", "chord", "chord_wide", "chord_off", "chord_kit", "arp",
@@ -805,7 +805,8 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "layer_seq_euclid_64",
     "menu_select", "project_erase", "confirm_erase_project", "tools_clean", "confirm_clean",
     "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
-    "edit_303", "tb3po_generate", "tb3po_scale", "tb3po_stale_playing", "tb3po_help", "confirm_init"};
+    "edit_303", "tb3po_generate", "tb3po_scale", "tb3po_stale_playing", "tb3po_help", "tb3po_model_aicd",
+    "tb3po_aicd_generate", "confirm_init"};
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1229,16 +1230,22 @@ static void setup(int s)
     case S_EDIT_PHASE_FOLD: eng(2); TSEL->p[P_E7] = 80; go_title("EDIT 2"); ui.hot_col = 3; ui.hot_t = 30; break;   /* 1.5.5 FOLD (#104) */
     case S_EDIT_303: eng(ENGI_303); go_title("EDIT 2"); ui.hot_col = 3; ui.hot_t = 30; break;   /* the 303: ACC .. DTYP */
     /* ARP on a 303 track (ui_tb3po.c): GENERATE with X0X's default line (seed BEEF, A minor); SCALE in C Phrygian,
-     * MUTATE every 4; LEN 32 playing, the knobs changed since (NEW LINE's star), a knob just turned; HELP's hint */
-    case S_TB3_GEN: case S_TB3_SCL: case S_TB3_STALE: case S_TB3_HELP: {
+     * MUTATE every 4; LEN 32 playing, the knobs changed since (NEW LINE's star), a knob just turned; HELP's hint.
+     * 1.6.2: MODEL in AICD (Aicd's line, seed BEEF); GENERATE in AICD (DENS 100 %, ACCENT 20 %, TEMP 150 %, SCALE MIN) */
+    case S_TB3_GEN: case S_TB3_SCL: case S_TB3_STALE: case S_TB3_HELP: case S_TB3_MODEL: case S_TB3_AICD: {
         uint32_t r = 0;
         eng(ENGI_303);
         tb3_reset();
         if (s == S_TB3_SCL) { tb3_cfg[song.sel].root = 0; tb3_cfg[song.sel].scale = 1; tb3_cfg[song.sel].mutate_bars = 4; }
         if (s == S_TB3_STALE) TSEL->p[P_SLEN] = 32;
+        if (s == S_TB3_MODEL || s == S_TB3_AICD) tb3_cfg[song.sel].mode = AICD_ON;
+        if (s == S_TB3_AICD) {
+            tb3_cfg[song.sel].a_dens = 100; tb3_cfg[song.sel].a_acc = 20; tb3_cfg[song.sel].temp = 150;
+            tb3_cfg[song.sel].a_scale = 1;
+        }
         tb3_apply(TSEL, 1, &r);
         if (s == S_TB3_HELP) ui_prefs2 |= PREF_HELP >> 16;
-        go_title(s == S_TB3_SCL ? "SCALE" : "GENERATE");
+        go_title(s == S_TB3_SCL ? "SCALE" : s == S_TB3_MODEL ? "MODEL" : "GENERATE");
         if (s == S_TB3_STALE) {
             tb3_rt[song.sel].stale = 1; tb3_cfg[song.sel].density = 100; ui.hot_col = 0; ui.hot_t = 30;
             song.playing = 1; TSEL->seq_idx = 21;

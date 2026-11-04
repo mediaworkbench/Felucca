@@ -258,7 +258,8 @@ static void graph_roll(const track_t *t, uint16_t c)
 }
 /* ARP on a 303 track (TB-3PO, ui_tb3po.c): the whole line (LEN steps across the panel, the beats' lines), its notes as
  * bars from the lowest to the highest of them (an octave at least), an ACC one taller in TEXT, a SLD drawn into the
- * next note, a TIE the bar on; the step playing; over it the key and scale the next line is in and the line's seed */
+ * next note, a TIE the bar on; the step playing; over it the key and scale the next line is in (1.6.2: "AICD" before
+ * them in that MODE, its SCALE) and the line's seed */
 #define TB3_X0 10                                   /* the line: x 10 .. 230, y 24 .. 114 */
 #define TB3_W 220
 #define TB3_Y0 24
@@ -272,9 +273,13 @@ static void graph_tb3(const track_t *t, uint16_t c)
     int32_t span;
     char b[16];
     cv_oy = 0;
-    str_cpy(b, N_NOTE[g->root % 12u], sizeof b);
+    b[0] = 0;
+    if (g->mode == TB3_AICD)
+        str_cpy(b, "AICD ", sizeof b);
+    str_cpy(b + str_len(b), N_NOTE[g->root % 12u], 4);
     str_cpy(b + str_len(b), " ", 2);
-    str_cpy(b + str_len(b), TB3_SCALE_NAMES[g->scale % TB3_NSCALES], 6);
+    str_cpy(b + str_len(b), g->mode == TB3_AICD ? TB3_ASCALE_NAMES[g->a_scale % (TB3_NSCALES + 1u)]
+                                                : TB3_SCALE_NAMES[g->scale % TB3_NSCALES], 6);
     cv_text(TB3_X0, 4, &AF_S, b, T_MID);
     str_cpy(b, "SEED ", sizeof b);
     for (j = 0; j < 4u; j++)
@@ -1285,10 +1290,11 @@ static uint32_t graph_signature(void)
     }
     if (pg->graph == GR_MOD)
         h ^= (mod_ui_slot + 1u) * 40503u;
-    if (pg->graph == GR_TB3GEN || pg->graph == GR_TB3SCL) {   /* TB-3PO: the line, its settings, the step playing */
+    if (pg->graph == GR_TB3GEN || pg->graph == GR_TB3SCL || pg->graph == GR_TB3MOD) {   /* TB-3PO: the line, its
+                                                                                         * settings, the step playing */
         const tb3_cfg_t *g = &tb3_cfg[trk_index(t)];
         h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u + g->seed * 2654435761u + tb3_auto_n * 7919u;
-        h = (h ^ (g->root + 12u * g->scale)) * 16777619u;
+        h = (h ^ (g->root + 12u * g->scale + 97u * g->a_scale + 1009u * g->mode)) * 16777619u;
     }
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
@@ -2415,6 +2421,7 @@ static void draw_graph(void)
             break;
         case GR_TB3GEN:
         case GR_TB3SCL:
+        case GR_TB3MOD:
             graph_tb3(t, c);                         /* (ARP on a 303 track: TB-3PO's line) */
             break;
         default:

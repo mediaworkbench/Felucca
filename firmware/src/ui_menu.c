@@ -75,6 +75,10 @@ static const menu_credit_t MENU_CREDITS[] = {
     {"https://github.com/RobinSchmidt/Open303", MC_URL},
     {"https://github.com/charlesvestal/fm1-x0x", MC_URL},
     {"", MC_TEXT},
+    {"AICD", MC_TITLE},                           /* TB-3PO's AICD mode: its model as it is (tb3po.c, assets/aicd/) */
+    {"Michael Ganss / MIT", MC_TEXT},
+    {"https://github.com/mganss/Aicd", MC_URL},
+    {"", MC_TEXT},
     {"INTER TIGHT", MC_TITLE},
     {"The Inter Project Authors", MC_TEXT},
     {"SIL Open Font License 1.1", MC_TEXT},
