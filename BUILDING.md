@@ -1,4 +1,6 @@
-# Building Felucca
+# Building Felucca for the M-VAVE FM-1
+
+This repository builds firmware for the FM-1 only. Host-side tests are development tools, not supported application platforms.
 
 The build makes three files in `build/`:
 
@@ -10,16 +12,18 @@ The build makes three files in `build/`:
 
 ## Get the source
 
-Five engines are in a git submodule (`firmware/engines/`, [Felucca-Engines](https://github.com/hugelton/Felucca-Engines),
-MIT), so clone with `--recurse-submodules`:
+Two parts are git submodules: six engines (`firmware/engines/`, [Felucca-Engines](https://github.com/hugelton/Felucca-Engines),
+MIT) and the hardware layer (`firmware/bsp/`, [felucca-bsp](https://github.com/hugelton/felucca-bsp), MPL-2.0), so clone
+with `--recurse-submodules`:
 
 ```
 git clone --recurse-submodules https://github.com/hugelton/Felucca.git
 ```
 
 In a clone made without it, run `git submodule update --init` once. GitHub's "Download ZIP" and the source archives
-it adds to a release leave `firmware/engines/` empty; each release also has `felucca-X.Y.Z-source.tar.gz`, the whole
-source with the submodule's files in it. The build stops with "firmware/engines is empty" when they are missing.
+it adds to a release leave `firmware/engines/` and `firmware/bsp/` empty; each release also has
+`felucca-X.Y.Z-source.tar.gz`, the whole source with the submodules' files in it. The build stops with
+"firmware/engines is empty" or "firmware/bsp is empty" when they are missing.
 
 ## Prerequisites (macOS)
 
@@ -43,7 +47,6 @@ source with the submodule's files in it. The build stops with "firmware/engines 
   ```
 
 - Node.js (optional, for the web tests).
-- Emscripten (optional, `emcc`: the browser emulator, `web/emu/`).
 
 On Linux x86-64 the toolchain runs natively and Docker is not needed.
 
@@ -56,10 +59,10 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
-`./build.sh --release 1.0` makes a release build: the package identity becomes `FM-1_910`
-and the version string `v1.0`; the package is `build/felucca-1.0.fwsc`, and
-`build/release-1.0/` holds what a release ships: the package, the app
-(`felucca-1.0-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
+`./build.sh --release 1.8.1` makes a release build: the package identity becomes `FM-1_918`
+and the version string `v1.8.1`; the package is `build/felucca-1.8.1.fwsc`, and
+`build/release-1.8.1/` holds what a release ships: the package, the app
+(`felucca-1.8.1-app.bin`), `SHA256SUMS`, the sample attribution, `LICENSE`, `LICENSING.md` and
 `LICENSES/` (the package contains Apache-2.0 SDK files, so the licence texts travel with it).
 
 Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `core.h` and `icons.c`):
@@ -71,18 +74,19 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_CDC` | 1 | USB serial console |
 | `FELUCCA_CDC_DEFAULT` | 1 | `0`: the console is built in but left out of USB from boot (as MENU > USB SERIAL OFF) |
 | `FELUCCA_UAC` | 1 | USB audio input (the master output, stereo, 44.1 or 48 kHz) |
-| `FELUCCA_UAC_48K` | 1 | `0`: the USB audio input at 44.1 kHz only, as up to 1.0.5.2 (`firmware/src/usb.c`) |
-| `FELUCCA_UAC_AS_FIRST` | 1 | the audio control header lists the audio streaming interface before the MIDI one, so the USB audio driver of older macOS (up to 15) finds it; `0`: 1.0 to 1.5's order, byte for byte (`firmware/src/usb.c`) |
-| `FELUCCA_CPU2` | 1 | the second core is built in (MENU > SYSTEM > 2ND CORE, OFF by default); `0`: none of it, 1.6's one-core code and RAM (`firmware/hal/fm1_cpu1.h`, `firmware/src/fx.c`) |
+| `FELUCCA_UAC_48K` | 1 | `0`: the USB audio input at 44.1 kHz only, as up to 1.0.5.2 (`firmware/bsp/chip/usb.c`) |
+| `FELUCCA_UAC_AS_FIRST` | 1 | the audio control header lists the audio streaming interface before the MIDI one, so the USB audio driver of older macOS (up to 15) finds it; `0`: 1.0 to 1.5's order, byte for byte (`firmware/bsp/chip/usb.c`) |
+| `FELUCCA_CPU2` | 1 | the second core is built in (MENU > SYSTEM > 2ND CORE, OFF by default); `0`: none of it, 1.6's one-core code and RAM (`firmware/bsp/chip/fm1_cpu1.h`, `firmware/src/fx.c`) |
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
 | `FELUCCA_SLICE` | 1 | the SLICE engine (`0`: engine 13 reserved, so DCO stays 14) |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_303` | 1 | the 303 engine (X0X's Open303, `firmware/src/eng_303.c`, `x0x/`) and TB-3PO, its ARP (`0`: engine 15 reserved, no float code) |
 | `FELUCCA_AICD` | 1 | TB-3PO's MODE AICD: Aicd's acid line model (`assets/aicd/lm.js`, ~24 KB of flash as `build/gen/felucca_aicd.h` by `tools/gen_aicd.py`); `0`: no MODEL page, TB-3PO's own lines only |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion (a test build: the DCO and 303 engines are left out, the EDIT layer has room for 15) |
+| `FELUCCA_ADPCM` | 0 | upstream's ADPCM engine (`firmware/src/eng_adpcm.c`, upstream's engine 14): kept in the tree, not available in this fork (14 is DCO, 15 the 303); `1` stops the build |
 
 `FELUCCA_USB_LAYOUT` (`0` to `3`, default `0`) picks other USB descriptor layouts for testing; see
-`firmware/src/usb.c`.
+`firmware/bsp/chip/usb.c`.
 
 The app is compiled for the single-precision FPU (`-mcpu=r3 -mfprev1 -ffp-contract=off`, `tools/build.py` `FPU`): the 303
 engine is float (X0X's port of Open303). The flags change no instruction of the integer code. Only the 303 may use float:
@@ -98,27 +102,13 @@ again from the source repositories. Without that folder the build still works, w
 instrument sets in the SAMPLE engine and no PIANO in SLICE (the PIANO set's middle C): they play a plain sine
 at the note's pitch instead, and the screen says NO SAMPLE.
 
-## Browser emulator
-
-```
-./build.sh
-web/emu/build.sh
-python3 -m http.server -d build/emu 8790     # open http://localhost:8790/
-```
-
-`web/emu/felucca_web.c` builds the firmware's sources as the host tests do, against a simulated FM-1, and
-Emscripten compiles it to WebAssembly (`build/emu/felucca.wasm`, with `index.html`, `worklet.js` and the font in `fonts/`). The page
-keeps the flash's storage sectors (projects, user presets, settings) in the browser. Not emulated: USB (audio,
-MIDI out, the editor, updates), TRS MIDI and the user sample slots. A build of it is on the site:
-<https://hugelton.github.io/Felucca/webapp/try/>.
-
 ## Tests
 
 ```
 tests/run_tests.sh
 ```
 
-Runs the host tests and, with Node.js, the web page tests (and, with Emscripten too, the browser emulator's). Run it after `./build.sh`
+Runs the firmware's host-side unit and regression tests and, with Node.js, the installer/editor tests. Run it after `./build.sh`
 (it uses `build/` and needs `AC79_SDK` set as for the build). The suites cover flash storage,
 user presets, projects of every format, backup, the keys and knobs, MIDI (USB, TRS, clock,
 control), USB audio, the update entry and loader, the command-line installer, the UI (the real
@@ -126,7 +116,9 @@ drawing code against stubs: every screen in every palette is rendered and checke
 overlapping text; PNGs land in `build/ui_new/`), every engine (DRUM, NOISE, PHYS, FM6, SLICE, DCO, 303 against X0X's own code, the
 DIGITAL conversion), TB-3PO against X0X's float generator (`tests/ref/`), the chord keys, the modulation matrix, the FX layer, the reverbs and the BBD chorus, the SLICER
 and swing. With `DAISYSP` pointing at a DaisySP checkout, the PHYS models are also compared with
-their floating-point originals; without it that test is skipped. Felucca-Engines' own test
+their floating-point originals; without it that test is skipped. Likewise with `SNES_SPC` pointing at a
+snes_spc 0.9.0 checkout, the ADPCM engine's voice is compared sample for sample with its `SPC_DSP.cpp`
+(`tests/adpcm_ref.cpp`, needs `c++`); without it the rest of the ADPCM test runs. Felucca-Engines' own test
 (`firmware/engines/tests/run.sh`) runs too, and its standalone host is built once more with Felucca's tables
 against the same golden renders.
 

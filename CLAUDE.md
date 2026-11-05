@@ -9,7 +9,7 @@ build flags and the tests.
 ## Build
 
 ```
-git submodule update --init          # firmware/engines (Felucca-Engines, MIT) must not be empty
+git submodule update --init          # firmware/engines (Felucca-Engines, MIT) and firmware/bsp (felucca-bsp) must not be empty
 ./build.sh                           # -> build/felucca.bin, build/loader/ota.bin, build/felucca.fwsc
 ./build.sh --release 1.6.1           # release build: identity FM-1_9XY, build/release-X.Y/
 FELUCCA_CPU2=0 ./build.sh            # build options FELUCCA_<NAME>=0|1; table in BUILDING.md
@@ -29,9 +29,10 @@ the build:
   because `eng_303.c` wraps X0X's float Open303 (`firmware/src/x0x/`, kept byte for byte as X0X has it:
   `tests/t303_test.c` checks their hashes). `float` / `double` anywhere else fails the build (`float_check`), and so does
   an FPU instruction outside the 303's functions. TB-3PO (`tb3po.c`) is an integer port with X0X's exact lines.
-- **All hardware register access lives in `firmware/hal/`.** In `src/`, `engines/src/` and `loader/`: no volatile
+- **All hardware register access lives in the hardware layer** (`firmware/bsp/`, the felucca-bsp submodule, MPL-2.0, and
+  `firmware/hal/`, this repo's additions; a file in `hal/` shadows the BSP's of the same name). In `src/`, `engines/src/` and `loader/`: no volatile
   pointer casts (except `*(volatile T *)&obj`), no literal register/window addresses, no inline asm (except
-  `RING_PUBLISH()`), no HAL register macros. Add a `hal/` helper instead.
+  `RING_PUBLISH()`), no HAL register macros. Add a `hal/` helper instead (the 303's FPU / IRQ / crash helpers: `hal/fm1_irq_extra.h`).
 
 ## Tests
 
@@ -63,8 +64,8 @@ Baselines:
   rendered with Felucca's generated tables) are golden files too.
 - UI renders write PNGs and lint reports to `build/ui_new/` (clipped/overlapping text, alignment off by ≥ 1 px fails).
 
-Web tests (`node web/test_web.mjs`, `node web/test_backup.mjs`) and the browser emulator (`web/emu/build.sh`, needs
-`emcc`) run from `run_tests.sh` when Node / Emscripten are installed.
+Web tests (`node web/test_web.mjs`, `node web/test_backup.mjs`) run from `run_tests.sh` when Node is installed (the
+browser emulator was removed upstream in 1.8.1).
 
 ## Architecture
 
@@ -73,25 +74,27 @@ Web tests (`node web/test_web.mjs`, `node web/test_backup.mjs`) and the browser 
 files include sub-files themselves (e.g. `engines.c` → `eng_*.c`, `seq.c` → `chord.c` / `motion.c` / `midi_*.c`,
 `editor.c` → `editor_*.c`, `ui.c` / `ui_draw.c` / `ui_graph.c` → `ui_*.c`, `fx.c` → `perform.c` / `click.c`,
 `project.c` → `settings_persist.c` / `slice_store.c`). A new source file is added with an `#include` at the right
-place, not to a build list. The HAL (`firmware/hal/fm1_*.h`) is header-only plus a few `.S` files. Functions are
+place, not to a build list. The HAL (`firmware/bsp/chip`, `firmware/bsp/boards/fm1`, `firmware/hal`: `fm1_*.h`) is header-only plus a few `.S` files. Functions are
 mostly `static`; there is no `#include` of system headers beyond `<stdint.h>` (`libc.c` provides `memset` etc.).
 
 **Host tests include the same sources.** Tests `#include "../firmware/src/*.c"` directly against stubs for the
 hardware (`tests/hostsim.c` is the base for the DSP / sequencer; `tests/ui_test.c` and `tests/ui_render.c` add the
-UI files; `web/emu/felucca_web.c` does the same for WebAssembly). So a change in include order or a new global
-in `felucca.c` may need the matching change in the test harnesses and the emulator.
+UI files). So a change in include order or a new global in `felucca.c` may need the matching change in the test
+harnesses.
 
 **Runtime.** `main.c` boots and runs the main loop (UI, storage, editor, USB/MIDI). Two ISRs: ALNK0 (`audio.c`)
 renders each I2S half buffer (`HALF_FRAMES` = 128) via `fx.c` `mix_block` (events → each part's engine/voices →
 INSERT / SLICER → sends → buses → master → USB audio tap → metronome click); TIMER5 (10 kHz, outranks ALNK0) scans
 keys/LEDs and services USB audio while nested in the audio ISR. With `FELUCCA_CPU2` and MENU > SYSTEM > 2ND CORE ON,
-a second core renders some parts (`hal/fm1_cpu1.h`, `C1_*` in `core.h`); output must be bit-identical to one core.
+a second core renders some parts (`bsp/chip/fm1_cpu1.h`, `C1_*` in `core.h`); output must be bit-identical to one core.
 
 **Model** (`core.h`): 4 tracks, each a synth part with its own engine, preset, parameters and 64-step pattern,
 sharing a budget of 8 voices (`voice.c`). Engines implement the interface in
 `firmware/engines/src/felucca_engine.h`. ANALOG, LOFI, TRIO, WHEEL, NOISE and the shared `dsp.c` live in the
 **Felucca-Engines submodule (MIT)**: changes to them belong in that repository. The others (`eng_*.c` here) are
 GPL. DIGITAL (`FELUCCA_FM4`) is retired: engine 1 is reserved and its sounds load as FM6 via `fm4_convert.c`.
+Upstream's ADPCM (`eng_adpcm.c`, upstream's engine 14) is in the tree but has no number in this fork: 14 is DCO, so
+`FELUCCA_ADPCM=1` stops the build (`core.h`); its `#if FELUCCA_ADPCM` blocks are kept as upstream has them for merges.
 Engine numbers are append-only (SLICE 13, DCO 14, 303 15); `NENGINES` is 16 in every build: a build without SLICE,
 with `FELUCCA_303=0` or with `FELUCCA_FM4=1` reserves its slot instead (`engines.c` `eng_ok` / `eng_stored_ok`), and
 the EDIT layer has keys for at most 15 engines plus INIT (`ui_layer.c` `LY_INIT < 16`; CLEAN INIT is the INIT dialog's
@@ -111,7 +114,7 @@ parameters by count (first `np - 8` common, last 8 engine). Flash regions are fi
 (versioned, earlier reply bytes never move). The web test's mock device must equal the firmware's tables:
 `tests/descdump.c` → `build/host/desc.json`, `tests/editor_test.c` → `build/host/menu.json`. The web editor and
 installer themselves are in the separate Felucca-WebApp repo; `web/` here holds the protocol libraries, tests,
-`make_site.py` and the emulator.
+`make_site.py`.
 
 **Update path.** `firmware/loader/` is a separate RAM-resident update loader (its own unit, `loader.c`), packed with
 the app into a `.fwsc` by `tools/fm1pkg_make.py`. `tools/fm1_install.py` installs from the command line.
@@ -123,5 +126,5 @@ the app into a `.fwsc` by `tools/fm1pkg_make.py`. `tools/fm1_install.py` install
   LICENSING.md.
 - Comments are dense and terse and reference issue numbers and the version a behavior arrived in (`1.5.5 (#209)`);
   match that style.
-- `FELUCCA_VERSION` is defined in `firmware/src/felucca.c`; tests and the emulator read it from there.
+- `FELUCCA_VERSION` is defined in `firmware/src/felucca.c`; tests read it from there.
 - PRs should be small, run `tests/run_tests.sh`, and be tested on a real FM-1 (CONTRIBUTING.md).

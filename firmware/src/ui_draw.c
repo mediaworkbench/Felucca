@@ -42,7 +42,8 @@ static void draw_rec_mark(int32_t x, uint16_t bg)
 /* the battery: a 16 px Fukiai icon. The stock thresholds give 0..3 bars of 3; the font has 0..4 bars of 4:
  * each level takes the nearest share, 0 -> battery_0 (empty), 1 (1/3) -> battery_1 (1/4), 2 (2/3) ->
  * battery_3 (3/4), 3 (full) -> battery_4 (battery_2 is not used); USB power: battery_charging.
- * Colours as the drawn battery had them: one bar left the accent, empty MID (its outline), else THEME */
+ * Colours as the drawn battery had them: one bar left the accent, empty MID (its outline), else THEME; USB power
+ * (1.8): green (T_OK) */
 static uint32_t batt_icon(int32_t lvl)
 {
     static const uint8_t I[5] = {ICON_X_BAT0, ICON_X_BAT1, ICON_X_BAT3, ICON_X_BAT4, ICON_X_BAT_CHG};
@@ -51,7 +52,7 @@ static uint32_t batt_icon(int32_t lvl)
 static void draw_battery(int32_t bx)
 {
     int32_t lvl = batt_shown();
-    cv_icon_mid(bx, H_HEAD / 2, 24, batt_icon(lvl), lvl == 1 ? T_ACCENT : lvl == 0 ? T_MID : T_THEME, T_BG);   /* 24 px: the glyph is wide and short */
+    cv_icon_mid(bx, H_HEAD / 2, 24, batt_icon(lvl), lvl == 4 ? T_OK : lvl == 1 ? T_WARN : lvl == 0 ? T_MID : T_THEME, T_BG);   /* 24 px: the glyph is wide and short */
 }
 
 /* ---------------------------------------------------- rolling digits --- */
@@ -803,14 +804,32 @@ static uint32_t foot_rename(void)
     return 0;
 }
 
-/* the sound's name on the track: a user preset or the engine's preset (b holds 16) */
+/* the sound's name on the track: a user preset or the engine's preset (b holds 16). FM6 (#309): on a bank slot
+ * (B1..B32) the name of the bank voice it plays; on OWN the patch's own name when it is not the name of the factory
+ * patch of the track's preset (an edited factory patch keeps the preset's name) */
 static void sound_name(const track_t *t, char *b)
 {
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
     b[0] = 0;
-    if (user_of(t) < UP_SLOTS)
+    if (user_of(t) < UP_SLOTS) {
         up_name(user_of(t), b);
-    else if (e->npresets)
+        return;
+    }
+    if (t->eng_req == ENGI_FM6) {
+        uint32_t tr = (uint32_t)(t - trk) % NTRK, k;
+        int32_t s = fm6_slot[tr];
+        const uint8_t *nm = fm6_patch[tr] + FP_NAME;
+        if (fm6_bank_slot(s) >= 0 ||
+            (s == (int32_t)FM6_OWN && memcmp(nm, FM6_FACTORY[t->preset % FM6_NFACTORY] + 118, 10))) {
+            for (k = 0; k < 10u; k++)                    /* upper case, as a user preset's (up_name) */
+                b[k] = (char)(nm[k] >= 'a' && nm[k] <= 'z' ? nm[k] - 32u : nm[k]);
+            for (b[10] = 0; k && b[k - 1] == ' '; k--)
+                b[k - 1] = 0;
+            if (b[0])
+                return;
+        }
+    }
+    if (e->npresets)
         str_cpy(b, e->presets[t->preset % e->npresets].name, 16);
 }
 
@@ -1322,6 +1341,11 @@ static void draw_columns(void)
         param_format(d, *vp, val, &unit);
         card_mot_of(vp);                                /* (a global: never) */
         card_span_of(d);
+        if (vp == &TSEL->p[P_ATDST]) {                  /* AFTERTOUCH's DEST: as MOD's (the engine's names) */
+            card_span_by(span_mod_dst, TSEL, 0, MD_N - 1, 0);
+            draw_column(c, d->label, mod_dst_name(TSEL, *vp), "", *vp ? VAL(c) : T_DIM, -1, mod_dst_icon(TSEL, *vp));
+            continue;
+        }
         if (vp == &TSEL->p[P_LRATE] && TSEL->p[P_LSYNC]) {   /* LFO 2 SYNC on: RATE does nothing, DIM (1.2) */
             draw_column(c, d->label, val, unit, T_DIM, RATIO(d, *vp), param_icon(d, *vp));
             continue;
@@ -1456,6 +1480,7 @@ static void confirm_text(char *a, char *b)
     case CF_CLEAR_TRK:
         str_cpy(a, "CLEAR TRACK 1?", 24);
         a[12] = (char)('1' + k % NTRK);
+        str_cpy(b, "STEPS AND AUTOMATION", 24);      /* (1.8: the automation goes too) */
         break;
     case CF_OVR_PROJ:
         str_cpy(a, "OVERWRITE PROJECT A?", 24);
@@ -1463,19 +1488,47 @@ static void confirm_text(char *a, char *b)
         if (!project_name(k & 3u, b) || !b[0])          /* the project's name, else what SONG plays from it */
             str_cpy(b, "SONG PATTERN CHANGES", 24);
         break;
-    case CF_DEL_ROW:
-        str_cpy(a, "DELETE SECTION?", 24);
+    case CF_DEL_ROW:                                 /* 1.8: its number, the slots it plays, its repeats */
+        str_cpy(a, "DELETE SECTION ", 24);
+        fmt_int(a + str_len(a), (int32_t)k + 1);
+        str_cpy(a + str_len(a), "?", 2);
+        if (k < chain_config.count) {
+            const chain_row_t *r = &chain_config.row[k];
+            uint32_t j;
+            for (j = 0; j < NTRK; j++) {
+                b[2 * j] = r->slot[j] < CHAIN_SILENT ? (char)('A' + r->slot[j]) : '-';
+                b[2 * j + 1] = ' ';
+            }
+            b[2 * NTRK] = 'X';
+            fmt_int(b + 2 * NTRK + 1, r->repeat);
+        }
         break;
     case CF_CLEAR_SONG:
         str_cpy(a, "CLEAR SONG ORDER?", 24);
         break;
     case CF_INIT_SOUND:
-        str_cpy(a, "INITIALIZE SOUND?", 24);
+        str_cpy(a, "INITIALIZE T1 SOUND?", 24);       /* (1.8: the track) */
+        a[12] = (char)('1' + k % NTRK);
         str_cpy(b, "KNOB 1: CLEAN INIT", 24);         /* (ui_input.c: KNOB 1 turns it into CLEAN INIT) */
         break;
     case CF_CLEAN_SOUND:                             /* 1.5.5 (#190): the basic sound, nothing added */
-        str_cpy(a, "CLEAN INIT SOUND?", 24);
+        str_cpy(a, "CLEAN INIT T1 SOUND?", 24);
+        a[12] = (char)('1' + k % NTRK);
         str_cpy(b, "NO FX, NO MOD", 24);
+        break;
+    case CF_LEARN_CLEAR:                             /* 1.8: MENU > MIDI > LEARN CLEAR */
+        str_cpy(a, "CLEAR MIDI LEARN?", 24);
+        fmt_int(b, (int32_t)ml_count());
+        str_cpy(b + str_len(b), " CC GO", 8);
+        break;
+    case CF_LOAD_PROJ:                               /* 1.8: over changes not saved */
+        str_cpy(a, "LOAD PROJECT A?", 24);
+        a[13] = (char)('A' + (k & 3u));
+        str_cpy(b, "CHANGES NOT SAVED GO", 24);
+        break;
+    case CF_CLEAR_ALL:                               /* 1.8 (#266): MENU > SYSTEM */
+        str_cpy(a, "CLEAR ALL?", 24);
+        str_cpy(b, "SAVED PROJECTS STAY", 24);
         break;
     case CF_CLEAR_MOTION:
         str_cpy(a, "CLEAR T1 AUTOMATION?", 24); a[7] = (char)('1' + k % NTRK);
@@ -1507,6 +1560,7 @@ static void confirm_text(char *a, char *b)
     default:
         str_cpy(a, "CLEAR T1 SEQUENCE?", 24);     /* the header (T1..T4) is hidden */
         a[7] = (char)('1' + k % NTRK);
+        str_cpy(b, "STEPS AND AUTOMATION", 24);      /* (1.8: the automation goes too) */
         break;
     }
 }

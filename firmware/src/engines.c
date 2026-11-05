@@ -10,9 +10,13 @@
  * last claimed it (eng_mem_owner); a switch to another such engine zeroes its engine_t.mem bytes, which is
  * the state each had at power-on, so a switch sounds as it did with the arrays (tests/union_test.c). State
  * that runs on across notes and switches stays outside (WHEEL's wheels, GRAIN's random numbers).
- * Sized by the largest, PHYS (3 x SYMP's slot); an engine that needs more than ENG_MEM_PART grows it for
+ * Sized by the largest, ADPCM when it is built (never in this fork, core.h; else PHYS, 3 x SYMP's slot); an engine that needs more than ENG_MEM_PART grows it for
  * every part (x NPART of the pool). Zero-initialised pool section: main.c fm1_cstart clears it. */
+#if FELUCCA_ADPCM
+#define ENG_MEM_PART 13344u    /* ADPCM: its 192 ms echo line, 8 voices and the DSP (13288 B; the host's pointers 13320) */
+#else
 #define ENG_MEM_PART 12888u
+#endif
 static union {
     uint64_t align;
     uint8_t b[ENG_MEM_PART];
@@ -22,7 +26,7 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #define ENG_MEM_FITS(name, size) _Static_assert((size) <= ENG_MEM_PART, name " state over ENG_MEM_PART")
 
 #include "../engines/src/eng_analog.c"   /* Felucca-Engines (MIT): ANALOG LOFI TRIO WHEEL NOISE */
-#include "eng_phase.c"
+#include "../engines/src/eng_phase.c"   /* Felucca-Engines (MIT): PHASE */
 #include "../engines/src/eng_lofi.c"
 #include "eng_sample.c"
 #include "eng_formant.c"
@@ -64,6 +68,9 @@ static const engine_t ENG_GONE = {
 #else
 static int t303_shed(void) { return 0; }   /* (audio.c's overload guard) */
 static void t303_calm(void) {}
+#endif
+#if FELUCCA_ADPCM
+#include "eng_adpcm.c"           /* ADPCM: BRR waves and an FIR echo, its DSP ported from snes_spc (adpcm_dsp.c, LGPL-2.1+) */
 #endif
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */

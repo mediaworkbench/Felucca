@@ -5,21 +5,17 @@ This is a fork of [Felucca Firmware for the M-VAVE FM-1](https://github.com/huge
 
 ## Overview
 
-Multi-engine synthesizer firmware for the M-VAVE FM-1, version 1.6.1. Connect the FM-1 to a computer by USB, open the
-[web installer](https://hugelton.github.io/Felucca/) in Chrome or Edge and press Install; no extra hardware is needed.
-Installing is at your own risk: M-VAVE's updater or the installer's **Return to official V15** takes you back.
-[Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/), no FM-1 needed.
+- [Web installer](https://hugelton.github.io/Felucca/)
+- [Web editor](https://hugelton.github.io/Felucca/webapp/editor/) ([source](https://github.com/hugelton/Felucca-WebApp))
+- [Manual and release notes](https://github.com/hugelton/Felucca/wiki/Home)
+- [Building from source](BUILDING.md)
+- [Issue tracker](https://github.com/hugelton/Felucca/issues)
 
-- Install: [web installer](https://hugelton.github.io/Felucca/)
-- Edit: [web editor](https://hugelton.github.io/Felucca/webapp/editor/) ([Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp))
-- Read: the manual and the release notes are in the [wiki](https://github.com/hugelton/Felucca/wiki/Home)
-- Build: [BUILDING.md](BUILDING.md)
-- Related: [Felucca-Engines](https://github.com/hugelton/Felucca-Engines) (the ANALOG, LOFI, TRIO, WHEEL and NOISE engines, MIT; still maintained) ·
-  [felucca-bsp](https://github.com/hugelton/felucca-bsp) (the FM-1 hardware layer)
+The firmware uses [Felucca-Engines](https://github.com/hugelton/Felucca-Engines) (MIT) for its built-in sound engines and [felucca-bsp](https://github.com/hugelton/felucca-bsp) (MPL-2.0) for the FM-1 hardware layer. Neither repository implies support for Felucca on other hardware.
 
-## New since 1.6.1
+## New in this fork
 
-Not released yet (the version string is still 1.6.1); build it from this branch ([BUILDING.md](BUILDING.md)).
+On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it from this branch ([BUILDING.md](BUILDING.md)).
 
 - **DCO engine (14): a Juno-106 voice.** Up to 4 voices a track. EDIT 1 has WAVE, PW, SUB, NOIS, CUT, RES, KEY and HPF; RANGE
   (16' 8' 4') has a page of its own; the track's LFO / ENV -> SHP move the pulse width (PWM). 20 presets from the Juno-106
@@ -45,7 +41,8 @@ Not released yet (the version string is still 1.6.1); build it from this branch 
   (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
 
 Compatibility: the engine order is append-only, so existing projects and sounds load unchanged and every earlier golden
-render is bit for bit as before. Firmware up to 1.6.1 resets the new DCO favourites setting (PER5) and shows projects that use
+render is bit for bit as before. Upstream's ADPCM engine (its engine 14, off by default there) is not
+available here: 14 is DCO and 15 the 303 (`FELUCCA_ADPCM=1` stops the build). Firmware up to 1.6.1 resets the new DCO favourites setting (PER5) and shows projects that use
 the DCO engine as EMPTY.
 
 ## AI disclaimer
@@ -55,9 +52,10 @@ Felucca is developed with the assistance of AI coding agents (code, tests, docum
 ## Credits and licence
 
 Free software: [GPL-3.0-only](LICENSE); the Hügelton Sample Pack is CC0 1.0; the engines in `firmware/engines` are MIT
-([Felucca-Engines](https://github.com/hugelton/Felucca-Engines)); the bundled fonts and ported DSP keep their own licences
+([Felucca-Engines](https://github.com/hugelton/Felucca-Engines)); the hardware layer in `firmware/bsp` is MPL-2.0
+([felucca-bsp](https://github.com/hugelton/felucca-bsp)); the bundled fonts and ported DSP keep their own licences
 (Open303 for the 303 engine is MIT; [LICENSES/](LICENSES/), [LICENSING.md](LICENSING.md)). Thanks to everyone whose work and contributions are in it: [CREDITS.md](CREDITS.md).
 
-M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with or endorsed by them.
+M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with, endorsed by or supported by M-VAVE.
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
