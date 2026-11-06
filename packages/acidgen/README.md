@@ -59,5 +59,5 @@ The code is **GPL-3.0-only** (it is derived from X0X's and Phazerville's GPL-3.0
 a firmware that includes it must be distributable under the GPL-3.0. The AICD model data is Aicd's, **MIT**
 (Copyright (c) 2018 Michael Ganss). Credit both (INTEGRATION.md, step 9).
 
-From Felucca at commit 70f3ef8 plus its AICD mode (2026-11-02, not yet committed there); `acid_selftest()` and
+From Felucca at commit 779adab (2026-11-04; its TB-3PO generator and AICD mode); `acid_selftest()` and
 Felucca's tests check the same line hashes (TB-3PO `0xCB4CC370`, AICD `0x99FE18AC`).
