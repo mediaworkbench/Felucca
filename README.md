@@ -30,8 +30,12 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
 - **TB-3PO, a MIDI/pattern generator for the 303.** On a 303 track ARP opens TB-3PO instead of the arpeggiator. GENERATE:
   DENS, ACCENT, SLIDE, OCTS; SCALE: ROOT, SCALE, OCTAVE, MUTATE (every 1..16 passes of the line while playing, or OFF).
   OCT+ writes a new line into the track's 64 steps (notes, accents, slides, rests), OCT- mutates about 25 % of the steps.
-  The steps stay normal, editable steps. An integer port of X0X's generator that makes the same line for the same seed
-  and settings (from the Phazerville Hemisphere Suite's TB_3PO applet). A third page, MODEL, sets MODE to AICD: the lines
+  The steps stay normal, editable steps. An integer port of X0X's generator that makes the same notes for the same seed
+  and settings (from the Phazerville Hemisphere Suite's TB_3PO applet); a rest keeps a note of its own. DENS, ACCENT,
+  SLIDE, OCTS, ROOT, SCALE and OCTAVE act on the line while it plays, from its next bar (at once when stopped): DENS
+  silences or brings back steps, ACCENT and SLIDE add or remove them on notes, always the same steps first; ROOT and
+  OCTAVE transpose, SCALE moves each note to the nearest one of the scale, OCTS folds or spreads the octaves. Turned
+  back, the line is the one it was (hand edits included). TEMP and MODE are for the next OCT+ / OCT-. A third page, MODEL, sets MODE to AICD: the lines
   then come from [Aicd](https://github.com/mganss/Aicd)'s model (Michael Ganss, MIT), an n-gram trained on many ABL3
   acid patterns, so each step follows the two before it as it did in those. In AICD, GENERATE is DENS, ACCENT, SLIDE (as in TB-3PO, 0..100 %: the share of the steps that are notes, and of
   the notes accented or sliding; the defaults are the model's own) and TEMP (below 100 % the likelier lines, above it the rarer ones);

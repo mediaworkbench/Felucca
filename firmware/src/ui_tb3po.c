@@ -4,10 +4,12 @@
  * OCTAVE MUTATE (every 1..16 passes of the line while playing, OFF); 1.6.2 (FELUCCA_AICD): MODEL: MODE (TB-3PO, AICD).
  * In AICD GENERATE is DENS ACCENT SLIDE TEMP (as TB-3PO's, 0..100 %, on Aicd's model; and its temperature) and SCALE
  * offers CHRO first (no bias), each a setting of its own. ARP taps through them as between ARP and ARP 2 (ui.c
- * page_visible: these on a 303 track, the arp's on any other). The knobs set up the next line only: the line
- * plays as it is, hand edits too, until OCT+ (a new line, a new seed) or OCT- (a MUTATE, ~25 % of the steps); the
- * footer's NEW LINE gets a star while they no longer match it (X0X's). Each is an undo (SAVE held; several in a row
- * one, as sound loads while browsing); not in a song (its steps are a slot's). Included by ui.c */
+ * page_visible: these on a 303 track, the arp's on any other). 1.8.2: DENS ACCENT SLIDE OCTS ROOT SCALE OCTAVE act on
+ * the line that plays, at its next bar (stopped: at once; in a song: after it), back to the same line when turned back
+ * (tb3po.c tb3_live; no undo: the knob is one). TEMP and MODE set up the next line only, until OCT+ (a new line, a new
+ * seed) or OCT- (a MUTATE, ~25 % of the steps); the footer's NEW LINE gets a star while they no longer match it.
+ * OCT+ / OCT- are each an undo (SAVE held; several in a row one, as sound loads while browsing); not in a song (its
+ * steps are a slot's). Included by ui.c */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* (ui_input.c) */
 
 enum { TB3_DENS, TB3_ACCT, TB3_SLID, TB3_OCTS, TB3_ROOT, TB3_SCL, TB3_BASE, TB3_MUT,
@@ -114,8 +116,25 @@ static void tb3_knob(uint32_t slot, int32_t steps)   /* (ui_input.c edit_param) 
     if (n == v)
         return;
     tb3_set(&tb3_cfg[tr], k, n);
-    if (k != TB3_MUT)                                  /* the line stays: the settings are the next OCT+ / OCT-'s */
+    if (k == TB3_MUT)
+        return;
+    if (k == TB3_TEMP || k == TB3_MODE) {              /* the next OCT+ / OCT-'s (MODE: the live knobs from the steps) */
         tb3_rt[tr].stale = 1;
+        if (k == TB3_MODE) {
+            fm1_irq_off();
+            tb3_rebase(tr);
+            fm1_irq_on();
+        }
+        return;
+    }
+    tb3_rt[tr].pending = 1;                            /* the line, at its next bar (tb3po.c tb3_bar) */
+    if (!song.playing && !chain_busy()) {              /* stopped: at once */
+        fm1_irq_off();
+        tb3_live(&trk[tr]);
+        fm1_irq_on();
+        sync_reload = 1;
+        ui.force = 1;
+    }
 }
 
 /* OCT+ (oct bit 1): a new line, a new seed; OCT- (bit 0): a MUTATE (X0X: its stream from the seed ^ the time). The
@@ -136,6 +155,12 @@ static void tb3_oct(uint32_t oct)
     if (fresh)
         tb3_cfg[k].seed = tb3_new_seed(fm1_ms ^ (ui.frame << 7));
     r0 = tb3_cfg[k].seed ^ fm1_ms;
+    fm1_irq_off();
+    if (fresh)
+        tb3_rt[k].pending = 0;                         /* (the new line is drawn at the knobs) */
+    else if (tb3_rt[k].pending)
+        tb3_live(t);                                   /* (a MUTATE of the line the knobs say) */
+    fm1_irq_on();
     for (;;) {
         fm1_irq_off();
         tb3_read(t->step, old);
@@ -149,6 +174,7 @@ static void tb3_oct(uint32_t oct)
         fm1_irq_on();
     }
     tb3_write(t->step, line, fresh ? 0 : old);
+    tb3_anchor(k, t->step);
     fm1_irq_on();
     load_end(t);
     tb3_rt[k].stale = 0;

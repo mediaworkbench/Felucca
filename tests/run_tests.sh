@@ -181,7 +181,8 @@
 # TB-3PO (tests/tb3po_test.c + tests/ref/: X0X's float generator, its own unit): the integer port (src/tb3po.c) against
 #                   it: every draw's rounding, 40000 lines, MUTATE chains, new seeds; the steps (a MUTATE writes only what
 #                   it changes), a project's FM6 area; the UI (ARP on a 303 track: GENERATE / SCALE, OCT+ / OCT-, the
-#                   knobs, undo, a song refuses), the arp inert there, auto MUTATE in the sequencer, a project round trip.
+#                   knobs, undo, a song refuses), the arp inert there, auto MUTATE in the sequencer, a project round trip;
+#                   1.8.2's live knobs (the line at the next bar, back when turned back, transposed / snapped / folded).
 #                   MODE AICD (1.6.2): Aicd's model in flash against tools/gen_aicd.py's exact one (every edge, the odds
 #                   within rounding), a draw's odds, its lines as Aicd's own sampler's (gate, accent, slide, key), the
 #                   DENS ACCENT SLIDE (0..100 %, fitted) and TEMP, MUTATE's run, the cost, the UI, auto MUTATE, a project, the same lines (a hash);

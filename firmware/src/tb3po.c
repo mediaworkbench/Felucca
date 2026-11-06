@@ -17,6 +17,8 @@
  * writes only the steps it changed, their other fields (RATCH, NUDGE, CHANCE, VEL) kept. LEN is the track's.
  * The settings and the seed per track (tb3_cfg): a project keeps them in a 303 track's FM6 area (tb3_pack, project.c),
  * 0 = X0X's defaults (70 % / 40 % / 25 %, 2 octaves, A minor from A1, seed BEEF).
+ * 1.8.2: DENS ACCENT SLIDE OCTS ROOT SCALE OCTAVE act on the line as it plays, at its next bar (tb3_live, tb3_bar),
+ * TEMP / MODE the next line's only; a new line's rests keep notes of their own (tb3_rest_notes: X0X's notes as they are).
  *
  * MODE AICD (1.6.2, FELUCCA_AICD): the line from Aicd's model instead (Michael Ganss, github.com/mganss/Aicd, MIT:
  * a maximum-likelihood n-gram trained on ABL3 patterns, as it is: tools/gen_aicd.py, build/gen/felucca_aicd.h): each
@@ -51,10 +53,20 @@ typedef struct {                 /* a track's TB-3PO settings (X0X tb3po_cfg_t):
 #define AICD_ACC 35u
 #define AICD_SLD 32u
 typedef struct { uint8_t note, flags; } tb3_step_t;
+typedef struct {                 /* 1.8.2: the knobs that act on the playing line (tb3_live), of the track's MODE */
+    uint8_t dens, acc, sld;      /* 0..100 % */
+    uint8_t octs;                /* 1..3 (AICD: 0, not a knob) */
+    uint8_t root, scale, base;   /* scale 0 CHRO (AICD's), 1.. TB3_SCALES[scale - 1] */
+} tb3_knobs_t;
 typedef struct {                 /* a track's TB-3PO state that is not stored */
     uint32_t rng;                /* auto MUTATE's random stream (X0X mut_rng; 0: from the seed) */
     uint32_t passes;             /* passes of the line since PLAY */
     uint8_t stale;               /* a setting changed since the line was written (the screen's NEW LINE *) */
+    uint8_t pending;             /* 1.8.2: a live knob turned, for the next bar (tb3_bar) */
+    uint8_t have;                /* anchor holds a line */
+    tb3_knobs_t k0, kapp;        /* the knobs anchor was written with / those last applied */
+    uint32_t wrote;              /* tb3_lhash of the steps as TB-3PO last wrote them (else: edited, a new anchor) */
+    tb3_step_t anchor[NSTEP];    /* the line the live knobs start from (OCT+, OCT-, auto MUTATE, a hand edit) */
 } tb3_rt_t;
 static tb3_cfg_t tb3_cfg[NTRK];
 static tb3_rt_t tb3_rt[NTRK];
@@ -584,6 +596,30 @@ static void aicd_mutate(const tb3_cfg_t *g, tb3_step_t *b, uint32_t len, uint32_
 }
 #endif
 
+/* a hash of seed, step i and a kind (the live knobs' fixed choices: not a draw of the line's stream) */
+static uint32_t tb3_h(uint32_t seed, uint32_t i, uint32_t kind)
+{
+    uint32_t x = seed * 2654435761u ^ (i + 1u) * 0x85EBCA6Bu ^ kind * 0xC2B2AE35u;
+    x ^= x >> 16;
+    x *= 0x7FEB352Du;
+    x ^= x >> 15;
+    x *= 0x846CA68Bu;
+    return x ^ (x >> 16);
+}
+/* 1.8.2: the rests' notes (X0X's keep the root): each its own, as a note's rules draw it (the root on the beat
+ * ~35 %, a degree, an octave of OCTS), so DENS up (tb3_live) brings in a line, not the root over and over */
+static void tb3_rest_notes(const tb3_cfg_t *g, tb3_step_t *b)
+{
+    const tb3_scale_t *sc = tb3_scale(g);
+    uint32_t range = tb3_clampi(g->oct_range, 1, 3), i, u, deg;
+    for (i = 0; i < NSTEP; i++)
+        if ((b[i].flags & TB3_GATE) == TB3_REST) {
+            u = tb3_h(g->seed, i, 'R');
+            deg = i % 4u == 0u && (u & 255u) < 90u ? 0u : (((u >> 8) & 0xFFFFu) * sc->len) >> 16;
+            b[i].note = tb3_note(g, deg, ((u >> 24) * range) >> 8);
+        }
+}
+
 /* the line of g's MODE: a new one (OCT+), a MUTATE */
 static void tb3_gen(const tb3_cfg_t *g, tb3_step_t *b, uint32_t len)
 {
@@ -594,6 +630,7 @@ static void tb3_gen(const tb3_cfg_t *g, tb3_step_t *b, uint32_t len)
     }
 #endif
     tb3_generate(g, b, len);
+    tb3_rest_notes(g, b);
 }
 static void tb3_mut(const tb3_cfg_t *g, tb3_step_t *b, uint32_t len, uint32_t *rng)
 {
@@ -650,6 +687,184 @@ static void tb3_write(step_t *s, const tb3_step_t *b, const tb3_step_t *old)
             tb3_put(&s[i], &b[i], !old);
 }
 
+/* ------------------------------------------- live knobs (1.8.2) --- */
+/* DENS ACCENT SLIDE OCTS ROOT SCALE OCTAVE act on the line that plays, at its next bar (tb3_bar): the line as the
+ * anchor (the last OCT+ / OCT- / auto MUTATE's, or the steps as edited) with the knobs moved from the anchor's (k0) to
+ * now's. A function of the anchor and the knobs only: back to k0, back to the anchor; never a new draw. DENS turns the
+ * steps on / off, ACCENT / SLIDE their flags, in a fixed order of the seed (tb3_order: the same steps go first every
+ * time); the anchor's share moved towards none / all (tb3_share). Pitches: ROOT OCTAVE transpose, SCALE snaps each step
+ * to its nearest degree, OCTS folds / spreads the octaves (each step's own hash). A rest keeps its note: DENS up plays
+ * it. Steps TB-3PO did not write (tb3_lhash != wrote): a new anchor, the knobs it was at kapp. */
+static tb3_knobs_t tb3_knobs(const tb3_cfg_t *g)
+{
+    tb3_knobs_t k;
+    int a = AICD_ON && g->mode == TB3_AICD;
+    k.dens = a ? g->a_dens : g->density;
+    k.acc = a ? g->a_acc : g->accent;
+    k.sld = a ? g->a_sld : g->slide;
+    k.octs = a ? 0u : g->oct_range;
+    k.root = g->root;
+    k.scale = (uint8_t)(a ? g->a_scale : g->scale + 1u);
+    k.base = g->base_oct;
+    return k;
+}
+static uint32_t tb3_lhash(const tb3_step_t *b)       /* a line's FNV-1a */
+{
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < NSTEP; i++)
+        h = (h ^ (b[i].note | (uint32_t)b[i].flags << 8)) * 16777619u;
+    return h;
+}
+static void tb3_order(uint32_t seed, uint32_t kind, uint8_t *o)   /* the steps in a fixed order (Fisher-Yates) */
+{
+    uint32_t r = tb3_h(seed, 0, kind), i, j;
+    uint8_t x;
+    for (i = 0; i < NSTEP; i++)
+        o[i] = (uint8_t)i;
+    for (i = NSTEP - 1u; i; i--) {
+        j = (tb3_u(&r) * (i + 1u)) >> 24;
+        x = o[i];
+        o[i] = o[j];
+        o[j] = x;
+    }
+}
+/* how many of tot are on at knob k: the anchor's c0 of tot0 (at k0) moved in proportion towards none (k < k0) or all
+ * (k > k0); k0 keeps the anchor's share, 0 / 100 % none / all, a step of the knob never a jump (rounded) */
+static uint32_t tb3_share(uint32_t c0, uint32_t tot0, uint32_t tot, uint32_t k0, uint32_t k)
+{
+    uint32_t num, den;
+    if (!tot0) {
+        num = k;
+        den = 100u;
+    } else if (k == k0) {
+        num = c0;
+        den = tot0;
+    } else if (k < k0) {
+        num = c0 * k;
+        den = tot0 * k0;
+    } else {
+        num = c0 * (100u - k0) + (tot0 - c0) * (k - k0);
+        den = tot0 * (100u - k0);
+    }
+    return (tot * num + den / 2u) / den;
+}
+static int tb3_gated(const tb3_step_t *s) { return (s->flags & TB3_GATE) != TB3_REST; }
+static int tb3_has(const tb3_step_t *s, uint32_t f) { return f ? (s->flags & f) != 0u : tb3_gated(s); }
+static int tb3_elig(const tb3_step_t *b, uint32_t i, uint32_t len, uint32_t f)   /* f (0: the gate) can be on step i */
+{
+    return !f || (tb3_gated(&b[i]) && (f == TB3_ACC || tb3_gated(&b[(i + 1u) % len])));   /* (a slide: into a note) */
+}
+/* flag f (0: the gate, else ACC / SLD) of b's steps to the share knob k says (the anchor a's at k0), in seed's order */
+static void tb3_fit(const tb3_step_t *a, tb3_step_t *b, uint32_t len, uint32_t f, uint32_t k0, uint32_t k,
+                    uint32_t seed)
+{
+    uint8_t o[NSTEP];
+    uint32_t i, j, c0 = 0, t0 = 0, c = 0, t = 0, n, x;
+    int less;
+    for (i = 0; i < len; i++) {
+        if (tb3_elig(a, i, len, f)) {
+            t0++;
+            c0 += (uint32_t)tb3_has(&a[i], f);
+        }
+        if (tb3_elig(b, i, len, f)) {
+            t++;
+            c += (uint32_t)tb3_has(&b[i], f);
+        }
+    }
+    n = tb3_share(c0, t0, t, k0, k);
+    if (n == c)
+        return;
+    less = n < c;
+    tb3_order(seed, f + 1u, o);
+    for (j = 0, i = 0; j < NSTEP; j++) {             /* fewer: the first n in order stay; more: the first off come on */
+        x = o[j];
+        if (x >= len || !tb3_elig(b, x, len, f) || tb3_has(&b[x], f) != less)
+            continue;
+        if (less) {
+            if (i++ < n)
+                continue;
+        } else if (c++ >= n)
+            break;
+        if (!f)
+            b[x].flags = less ? TB3_REST : TB3_NOTE;
+        else
+            b[x].flags = (uint8_t)(less ? b[x].flags & ~f : b[x].flags | f);
+    }
+}
+/* a note from the anchor's knobs k0 to k (h: the step's hash) */
+static uint8_t tb3_repitch(uint32_t note, const tb3_knobs_t *k0, const tb3_knobs_t *k, uint32_t h)
+{
+    int32_t off = (int32_t)note - (12 * (k0->base + 1) + k0->root), o, w, best, d, bd, i;
+    o = off >= 0 ? off / 12 : -((11 - off) / 12);
+    w = off - 12 * o;
+    if (k->scale != k0->scale && k->scale) {         /* the nearest degree (12: the root above; ties down) */
+        const tb3_scale_t *sc = &TB3_SCALES[(k->scale - 1u) % TB3_NSCALES];
+        for (best = 12, bd = 12 - w, i = 0; i < sc->len; i++) {
+            d = sc->deg[i] > w ? sc->deg[i] - w : w - sc->deg[i];
+            if (d < bd || (d == bd && sc->deg[i] < best)) {
+                bd = d;
+                best = sc->deg[i];
+            }
+        }
+        o += best == 12;
+        w = best % 12;
+    }
+    if (k->octs != k0->octs && k->octs && k0->octs) {   /* fewer: folded in; more: a share moves up */
+        int32_t x = (int32_t)(h % k->octs);
+        if (!(o < k->octs && x < k0->octs))
+            o = x;
+    }
+    return (uint8_t)tb3_clampi(12 * (k->base + 1) + k->root + 12 * o + w, 0, 127);
+}
+/* the line the knobs k make of anchor a (made at k0): b, len steps (the pitches of all NSTEP) */
+static void tb3_live_line(const tb3_step_t *a, const tb3_knobs_t *k0, const tb3_knobs_t *k, uint32_t seed,
+                          uint32_t len, tb3_step_t *b)
+{
+    uint32_t i;
+    len = tb3_clampi((int32_t)len, 1, NSTEP);
+    memcpy(b, a, NSTEP * sizeof *b);
+    tb3_fit(a, b, len, 0, k0->dens, k->dens, seed);
+    tb3_fit(a, b, len, TB3_ACC, k0->acc, k->acc, seed);
+    tb3_fit(a, b, len, TB3_SLD, k0->sld, k->sld, seed);
+    for (i = 0; i < NSTEP; i++)
+        b[i].note = tb3_repitch(a[i].note, k0, k, tb3_h(seed, i, 'O'));
+}
+/* the line track k's steps hold (just written) is the anchor, at the knobs now (OCT+ / OCT- / auto MUTATE drew it) */
+static void tb3_anchor(uint32_t k, const step_t *s)
+{
+    tb3_rt_t *rt = &tb3_rt[k % NTRK];
+    tb3_read(s, rt->anchor);
+    rt->k0 = rt->kapp = tb3_knobs(&tb3_cfg[k % NTRK]);
+    rt->wrote = tb3_lhash(rt->anchor);
+    rt->have = 1;
+    rt->pending = 0;
+}
+static void tb3_rebase(uint32_t k)                   /* no anchor (a load, MODE): the steps one, at the knobs now */
+{
+    tb3_rt[k % NTRK].have = tb3_rt[k % NTRK].pending = 0;
+    tb3_rt[k % NTRK].kapp = tb3_knobs(&tb3_cfg[k % NTRK]);
+}
+/* the knobs into track t's steps (the audio ISR's at a bar, tb3_bar; the UI's stopped, IRQs off) */
+static void tb3_live(track_t *t)
+{
+    uint32_t k = trk_index(t);
+    tb3_rt_t *rt = &tb3_rt[k];
+    tb3_knobs_t kn = tb3_knobs(&tb3_cfg[k]);
+    tb3_step_t cur[NSTEP], b[NSTEP];
+    rt->pending = 0;
+    tb3_read(t->step, cur);
+    if (!rt->have || tb3_lhash(cur) != rt->wrote) {  /* edited (or loaded): those steps the anchor */
+        memcpy(rt->anchor, cur, sizeof cur);
+        rt->k0 = rt->kapp;
+        rt->have = 1;
+    }
+    tb3_live_line(rt->anchor, &rt->k0, &kn, tb3_cfg[k].seed, (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), b);
+    tb3_write(t->step, b, cur);
+    tb3_read(t->step, cur);
+    rt->wrote = tb3_lhash(cur);
+    rt->kapp = kn;
+}
+
 /* track t's next line b from its steps old (tb3_read of them): a new line (fresh: OCT+), else OCT- / auto MUTATE's
  * with *rng */
 static void tb3_line(const track_t *t, const tb3_step_t *old, tb3_step_t *b, int fresh, uint32_t *rng)
@@ -667,9 +882,12 @@ static void tb3_line(const track_t *t, const tb3_step_t *old, tb3_step_t *b, int
 static void tb3_apply(track_t *t, int fresh, uint32_t *rng)
 {
     tb3_step_t b[NSTEP], old[NSTEP];
+    if (!fresh && tb3_rt[trk_index(t)].pending)
+        tb3_live(t);                                 /* (a MUTATE from the line the knobs say) */
     tb3_read(t->step, old);
     tb3_line(t, old, b, fresh, rng);
     tb3_write(t->step, b, fresh ? 0 : old);
+    tb3_anchor(trk_index(t), t->step);
 }
 
 /* a pass of t's line starts (seq.c seq_enter, step 1; top: PLAY's or a section's first, which counts from 0): every
@@ -685,6 +903,17 @@ static __attribute__((noinline)) void tb3_pass(track_t *t, uint32_t top)
     if (m && !chain.running && t->eng_req % NENGINES == ENGI_303 && tb3_rt[k].passes % m == 0u) {
         tb3_apply(t, 0, &tb3_rt[k].rng);             /* (NEW LINE's star stays as it was, as X0X's) */
         tb3_auto_n++;
+    }
+}
+/* a bar of t's line starts (seq.c seq_enter: every 16th step, step 1 too; a 303 track): its auto MUTATE, then (1.8.2) a
+ * live knob turned since (not in a song: it waits) */
+static __attribute__((noinline)) void tb3_bar(track_t *t, uint32_t top)
+{
+    if (!t->seq_idx)
+        tb3_pass(t, top);
+    if (tb3_rt[trk_index(t)].pending && !chain.running) {
+        tb3_live(t);
+        tb3_auto_n++;                                /* (the screen redraws; the UI's OCT- sees the steps changed) */
     }
 }
 
@@ -721,6 +950,7 @@ static int tb3_unpack(uint32_t k, const uint8_t *pk)
     tb3_rt[k % NTRK].rng = tb3_rt[k % NTRK].passes = tb3_rt[k % NTRK].stale = 0;
     if (pk[0] != 'T' || pk[1] != 'B' || pk[2] != '3' || pk[3] != 'P' || pk[4] != TB3_PK_VER) {
         tb3_defaults(g, 0);
+        tb3_rebase(k);
         return 0;
     }
     g->density = (uint8_t)tb3_clampi(pk[5], 0, 100);
@@ -748,6 +978,7 @@ static int tb3_unpack(uint32_t k, const uint8_t *pk)
         g->a_sld = (uint8_t)tb3_clampi(pk[24], 0, 100);
         g->a_scale = (uint8_t)tb3_clampi(pk[25], 0, TB3_NSCALES);
     }
+    tb3_rebase(k);
     return 1;
 }
 static void tb3_reset(void)                           /* power-on: every track X0X's defaults */
@@ -756,5 +987,6 @@ static void tb3_reset(void)                           /* power-on: every track X
     for (k = 0; k < NTRK; k++) {
         tb3_defaults(&tb3_cfg[k], 0);
         tb3_rt[k].rng = tb3_rt[k].passes = tb3_rt[k].stale = 0;
+        tb3_rebase(k);
     }
 }

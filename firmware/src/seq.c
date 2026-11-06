@@ -1228,11 +1228,10 @@ static __attribute__((noinline)) void seq_nd_start(track_t *t, uint32_t period, 
  * recorded note held ties into it (not inlined: once a step, off the audio ISR's loop) */
 static __attribute__((noinline)) void seq_enter(track_t *t, uint32_t top, uint32_t len)
 {
-    if (!t->seq_idx) {
+    if (!t->seq_idx)
         t->cond_loop = (uint8_t)(top || t->cond_loop + 1u >= COND_LOOPS ? 0u : t->cond_loop + 1u);
-        if (t->eng_req % NENGINES == ENGI_303)
-            tb3_pass(t, top);                       /* TB-3PO's auto MUTATE, before step 1 plays (tb3po.c) */
-    }
+    if (!(t->seq_idx & 15u) && t->eng_req % NENGINES == ENGI_303)
+        tb3_bar(t, top);                            /* TB-3PO: auto MUTATE before step 1, the live knobs at a bar */
     rec_hold(t, t->seq_idx, len);
 }
 
