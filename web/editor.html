@@ -2917,19 +2917,34 @@ async function connect() {
       }
       access.onstatechange = onState;
     }
-    const isF = (p) => /felucca/i.test(p.name || "") && p.state !== "disconnected";
-    const input = [...access.inputs.values()].find(isF);
-    const output = [...access.outputs.values()].find(isF);
-    if (!input || !output) { sayK("nodevice"); return; }
-    const link = new Link((d) => output.send(d), {
-      timeout: 300,
-      onUnknown: (f) => console.debug("ignored reply", f),
-      onTimeout: () => sayK("noreply"),
-      onPush: (f) => onPush(f),
-      onGap: () => { rewatch = true; },
-    });
-    input.onmidimessage = (e) => link.receive(e.data);
-    if (input.open) await input.open().catch(() => {});
+    /* the FM-1's port by its name, then by its answer: macOS and Windows keep the port name of the first firmware they
+       saw on the device ("X0X FM-1", "FM-1", ...), so every port named as the installer's (fm1ota.js) is asked, Felucca's
+       own name first, and the first that answers PING is the one (after SLOOP's editor, d315ad8) */
+    const named = (p) => /fm-1|felucca|ota|composite|sinco|usb-midi/i.test(p.name || "") && p.state !== "disconnected";
+    const ins = [...access.inputs.values()].filter(named)
+      .sort((a, b) => /felucca/i.test(b.name) - /felucca/i.test(a.name));
+    let input = null, output = null, link = null;
+    for (const i of ins) {
+      const o = [...access.outputs.values()].find((p) => named(p) && p.name === i.name);
+      if (!o) continue;
+      const l = new Link((d) => o.send(d), {
+        timeout: 300,
+        onUnknown: (f) => console.debug("ignored reply", f),
+        onTimeout: () => sayK("noreply"),
+        onPush: (f) => onPush(f),
+        onGap: () => { rewatch = true; },
+      });
+      i.onmidimessage = (e) => l.receive(e.data);
+      if (i.open) await i.open().catch(() => {});
+      /* (the first frame after opening the port can be lost: a few tries) */
+      if (await l.request(req.ping(), { timeout: 400, retries: 2, quiet: true }).then(() => true, () => false)) {
+        input = i; output = o; link = l;
+        break;
+      }
+      l.close();
+      i.onmidimessage = null;
+    }
+    if (!link) { sayK("nodevice"); return; }
     dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
       keys: null, watch: false, bank: null };
     connectedDevice = dev;
