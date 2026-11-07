@@ -51,6 +51,14 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
   USR1. Track 3 starts as DCO STRINGS (was LOFI PULSE LD). The engines: ANALOG, FM6, PHASE, TRIO, WHEEL, GRAIN, PHYS,
   NOISE, DRUM, DCO, 303; on the EDIT layer INIT is the key after them (C5, was G5). A project (or backup) with a track on
   one of the four left out is not loaded (EMPTY); a user preset of one plays as FM6.
+- **A steadier second core.** With MENU > SYSTEM > 2ND CORE ON, some FM-1s crashed within seconds (FELUCCA CRASH in
+  the render; never with it OFF): at the boot loader's supplies (1.40 V / 1.26 V) and both cores busy, they read flash
+  and RAM one bit wrong. The firmware now starts with M-VAVE's own supplies (VDC14 1.60 V, SYSVDD 1.38 V), as
+  [X0X](https://github.com/charlesvestal/fm1-x0x) 1.0.9 and [SLOOP](https://github.com/isod89/sloop-fm1) 2.7 do
+  ([fm1-x0x#21](https://github.com/charlesvestal/fm1-x0x/issues/21)); the console's `status` shows them (`vdc14` 7,
+  `sysvdd` 15). felucca-bsp is at its latest: the flash is never switched off while the second core may run from it.
+  A crash screen now stays 10 s (was 4), time for a photo of it. If a unit still crashes with 2ND CORE ON, set it OFF
+  (a crash beside the second core turns it off until the next power-off).
 
 Compatibility: the engine order is append-only, so projects and sounds of the engines built load unchanged, and with
 all four switches at 1 every earlier golden render is bit for bit as before. Upstream's ADPCM engine (its engine 14, off by default there) is not
