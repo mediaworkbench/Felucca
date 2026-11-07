@@ -71,6 +71,16 @@ static int check(const char *what, int ok)
     printf("editor: %-70s %s\n", what, ok ? "ok" : "FAIL");
     return !ok;
 }
+/* felucca-bsp's queue of received frames (chip/usb.c, after 5942e68; sx_ready before): frames waiting, and all of
+ * them dropped (what ed_service leaves for ota_service) */
+static int sx_pending(void) { return sx_made != sx_taken; }
+static void sx_flush(void)
+{
+    const uint8_t *p;
+    uint32_t n;
+    while (ota_frame_get(&p, &n))
+        ota_frame_done();
+}
 static void reset(void)
 {
     uint32_t t, i;
@@ -81,7 +91,7 @@ static void reset(void)
     memset(proj_slot, 0, sizeof proj_slot); memset(up_bank, 0, sizeof up_bank);
     memset(&um, 0, sizeof um); memset(usr_nz, 0, sizeof usr_nz);
     host_progress = 1; host_erases = host_writes = host_wire_n = 0;
-    transport_req = panic_req = 0; sx_ready = sx_collect = sx_busy = 0;
+    transport_req = panic_req = 0; sx_collect = sx_busy = 0; sx_flush();
     so_r = so_w = mi_r = mi_w = 0; midi_in_overflow = 0; usb.config = 1;
     for (i = 0; i < G_COUNT; i++) song.g[i] = GP[i].def;
     for (t = 0; t < NTRK; t++) {
@@ -92,7 +102,7 @@ static void reset(void)
 static uint32_t request(uint32_t cmd, const uint8_t *a, uint32_t n)
 {
     uint32_t i;
-    host_wire_n = 0; ota_frame_done();
+    host_wire_n = 0; sx_flush();
     sysex_byte(0xF0); sysex_byte(ED_HDR0); sysex_byte(ED_HDR1); sysex_byte(ED_HDR2); sysex_byte((uint8_t)cmd);
     for (i = 0; i < n; i++) sysex_byte(a[i]);
     sysex_byte(0xF7); ed_service(); host_drain();
@@ -234,19 +244,19 @@ static int framing(void)
     ed_service(); host_drain();
     bad += check("realtime bytes interleaved in SysEx do not enter the editor frame",
                  host_wire_n == 7u && host_wire[4] == ED_PING && host_wire[5] == 0);
-    ota_frame_done(); host_wire_n = 0;
+    sx_flush(); host_wire_n = 0;
     for (i = 0; i < sizeof aborted; i++) sysex_byte(aborted[i]);
     ed_service(); host_drain();
     bad += check("a non-realtime status aborts SysEx without changing parameters",
-                 !sx_ready && !host_wire_n && TSEL->p[P_LEVEL] == TP[P_LEVEL].def);
+                 !sx_pending() && !host_wire_n && TSEL->p[P_LEVEL] == TP[P_LEVEL].def);
     bad += check("a valid request works after an aborted frame", request(ED_PING, 0, 0) == 7u);
-    ota_frame_done();
+    sx_flush();
     midi_in_event(0x467DF004u);                          /* F0 7D 46 */
     midi_in_event(0x00004C04u);                          /* unfinished SysEx */
     midi_in_event(0x643C9009u);
     sysex_byte(0xF7);
     bad += check("a channel event in another USB packet aborts an unfinished SysEx",
-                 !sx_ready && mi_w == 1u && midi_in_q[0] == 0x643C9009u);
+                 !sx_pending() && mi_w == 1u && midi_in_q[0] == 0x643C9009u);
     midi_in_event(0x643C8009u);                          /* wrong CIN */
     midi_in_event(0x643CFF09u);                          /* wrong status */
     midi_in_event(0xFF3C9009u);                          /* not a seven-bit velocity */
@@ -833,7 +843,7 @@ static int usb_burst(void)
         k = usb_frame(f, n, u);
         usb_feed(u, k);
         host_wire_n = 0; ed_service(); host_drain();
-        ok &= wire_frames(ED_BACKUP_PUT, &x) == 1u && !x[2] && sx_ready == 0;
+        ok &= wire_frames(ED_BACKUP_PUT, &x) == 1u && !x[2] && !sx_pending();
     }
     bad += check("256-byte pieces in 64-byte USB packets at full speed: every piece taken (rc 0)",
                  ok && ed_bk_pos == sizeof(project_store_t) && max == 4u + 1u + 7u + 293u + 1u && max <= sizeof sx_frame);
@@ -841,19 +851,20 @@ static int usb_burst(void)
     usb_feed(u, usb_frame(f, n, u)); host_wire_n = 0; ed_service(); host_drain();
     bad += check("abort through ep1_take", wire_frames(ED_BACKUP_PUT, &x) == 1u && !x[2] && !ed_bk_put);
 
-    /* two frames back to back, before the reply: the second is dropped whole, the first answered intact */
+    /* two frames back to back, before the reply: both queued (felucca-bsp's queue; the second was dropped whole
+     * before it) and answered in order */
     n = put_frame(f, 0, 0, 0);
     usb_feed(u, usb_frame(f, n, u)); host_wire_n = 0; ed_service(); host_drain();
     k = usb_frame(f, put_frame(f, 1, 0, 256), u2);
     k += usb_frame(f, put_frame(f, 1, 256, 256), u2 + k);
     usb_feed(u2, k);
     host_wire_n = 0; ed_service(); ed_service(); host_drain();
-    bad += check("pipelined: the first piece is taken, the second (sent before its reply) dropped whole",
-                 wire_frames(ED_BACKUP_PUT, &x) == 1u && !x[2] && ed_bk_pos == 256u && !sx_ready);
-    n = put_frame(f, 1, 512, 256);
+    bad += check("pipelined: both pieces (the second sent before the first's reply) queued and taken in order",
+                 wire_frames(ED_BACKUP_PUT, &x) == 2u && !x[2] && ed_bk_pos == 512u && !sx_pending());
+    n = put_frame(f, 1, 768, 256);
     usb_feed(u, usb_frame(f, n, u)); host_wire_n = 0; ed_service(); host_drain();
-    bad += check("... so the next piece is refused (rc 1, offset), as a host that waits never sees",
-                 wire_frames(ED_BACKUP_PUT, &x) == 1u && x[2] == 1u && ed_bk_pos == 256u);
+    bad += check("... and a piece out of order is refused (rc 1, offset), as a host that waits never sees",
+                 wire_frames(ED_BACKUP_PUT, &x) == 1u && x[2] == 1u && ed_bk_pos == 512u);
     request(ED_BACKUP_PUT, (const uint8_t[]){3, 2}, 2);
     return bad;
 }

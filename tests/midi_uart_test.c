@@ -46,6 +46,19 @@ static uint32_t drain(uint8_t *out, int *cin_ok)
     return n;
 }
 
+/* the oldest received frame is p[0..n-1] (between F0 and F7), and taken; n == 0: none waits. Through the main loop's
+ * calls (editor.c ed_service): felucca-bsp's queue of frames (chip/usb.c, after 5942e68) replaced sx_ready /
+ * sx_frame_len */
+static int take(const uint8_t *p, uint32_t n)
+{
+    const uint8_t *q;
+    uint32_t m;
+    if (!ota_frame_get(&q, &m))
+        return n == 0;
+    ota_frame_done();
+    return n && m == n && !memcmp(q, p, n);
+}
+
 static int test_usb_sysex(void)
 {
     static uint8_t msg[700], got[700];
@@ -60,34 +73,31 @@ static int test_usb_sysex(void)
         if (ota_wire_send(msg, n) || drain(got, &cin_ok) != n || memcmp(got, msg, n) || !cin_ok || sx_busy)
             enc_ok = 0;
         feed(got, n);
-        if (n > 2u && (!sx_ready || sx_frame_len != n - 2u || memcmp(sx_frame, msg + 1, n - 2u)))
+        if (!take(msg + 1, n - 2u))                     /* (n == 2: F0 F7, no frame) */
             rt_ok = 0;
-        ota_frame_done();
     }
     bad += check("usb: ota_wire_send packets (CIN 4.. then 5/6/7)", enc_ok);
     bad += check("usb: received frame == the bytes between F0 and F7", rt_ok);
 
     feed((const uint8_t *)"\xF0\x01\x02\xF7", 4);
     feed((const uint8_t *)"\xF0\x03\x04\x05\xF7", 5);
-    bad += check("usb: a frame while one is pending is dropped",
-                 sx_ready && sx_frame_len == 2u && sx_frame[0] == 1 && sx_frame[1] == 2);
-    ota_frame_done();
+    bad += check("usb: a frame while one is pending is queued after it",   /* (dropped before felucca-bsp's queue) */
+                 take((const uint8_t *)"\x01\x02", 2) && take((const uint8_t *)"\x03\x04\x05", 3) && take(0, 0));
     feed((const uint8_t *)"\xF0\x11\x12", 3);           /* cut off by the next F0 */
     feed((const uint8_t *)"\xF0\x21\xF7", 3);
     bad += check("usb: a truncated frame is replaced by the next one",
-                 sx_ready && sx_frame_len == 1u && sx_frame[0] == 0x21);
-    ota_frame_done();
+                 take((const uint8_t *)"\x21", 1) && take(0, 0));
     msg[0] = 0xF0;
     memset(msg + 1, 0x55, sizeof msg - 2u);
     msg[sizeof msg - 1u] = 0xF7;
     feed(msg, sizeof msg);
-    bad += check("usb: an oversized frame (698 B) is not taken", !sx_ready);
+    bad += check("usb: an oversized frame (698 B) is not taken", take(0, 0));
     feed((const uint8_t *)"\xF0\x22\x24\x35\x7D\xF7", 6);
-    bad += check("usb: soft key -> uboot_req, not a frame", usb.uboot_req && !sx_ready);
+    bad += check("usb: soft key -> uboot_req, not a frame", usb.uboot_req && take(0, 0));
     feed((const uint8_t *)"\xF0\x22\x24\x35\x7F\xF7", 6);
-    bad += check("usb: upgrade key -> ota_req, not a frame", usb.ota_req && !sx_ready);
+    bad += check("usb: upgrade key -> ota_req, not a frame", usb.ota_req && take(0, 0));
     feed((const uint8_t *)"\x22\x24\xF7", 3);           /* no F0: ignored */
-    bad += check("usb: bytes outside F0..F7 are ignored", !sx_ready);
+    bad += check("usb: bytes outside F0..F7 are ignored", take(0, 0));
 
     so_w = so_r + SXQ;                                  /* ring full ... */
     usb.config = 0;                                     /* ... and the host gone */

@@ -208,6 +208,8 @@ static void con_status(void)
     con_kv("cpu2_blocks", (int32_t)c1_blocks);          /* blocks it took parts of (fx.c mix_block) */
     con_kv("cpu2_stack", (int32_t)fm1_cpu1_stack_used());
 #endif
+    con_kv("vdc14", (int32_t)fm1_vdc14());              /* the supplies' levels (main.c fm1_cstart): 7 = 1.60 V */
+    con_kv("sysvdd", (int32_t)fm1_sysvdd());            /* 15 = 1.38 V; the boot loader's 3 / 11 mean they were not raised */
     con_kv("voices_given_up", (int32_t)voice_kills);
     con_kv("track", (int32_t)song.sel + 1);
     con_kv("batt_raw", song.batt_raw);

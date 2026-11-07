@@ -39,7 +39,8 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
 # built only with FELUCCA_FM4=1 (DIGITAL, src/eng_digital.c; not in the default build, so not in BUDGET): absent,
 # they are skipped; present, checked against these (their budget lines until the engine was retired in 1.0)
 OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558,
-            "uac_tap48": 507,           # (absent from a FELUCCA_UAC_48K=0 or FELUCCA_UAC=0 build)
+            "uac_tap48": 642,           # (absent from a FELUCCA_UAC_48K=0 or FELUCCA_UAC=0 build; 507 until felucca-bsp
+                                        # 14610bd: each tap a call, uac_mac48, docs/CPU.md's 64-bit multiply fault)
             "mix_part": 1754,
             "adp_render": 2577, "adp_block": 102, "adp_post": 309,   # (ADPCM: built only with FELUCCA_ADPCM=1)
             # this fork's engine switches (src/core.h, off by default): LOFI, SAMPLE, VOICE, SLICE when built

@@ -27,14 +27,14 @@ static void hexs(char *b, uint32_t v)
 static void fm1_fault(const fm1_crash_t *c)
 {
     char b[12];
-    uint32_t t0;
+    uint32_t t0, k;
     fm1_audio_stop();
     scr_wake_now();                                   /* (MENU > SCREEN OFF: the panel on first) */
     lcd_fill(0, 0, 240, 240, UI_CRASH_BG);            /* fixed, outside the palettes */
     draw_text_line(0, 8, 240, &AF_M, "FELUCCA CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
     {   /* two columns, top to bottom. Left: vec pc emu dbg rets sp psr ssp; right: usp, the main loop's stack at
          * usp - 4, usp - 8 and usp + 20, the ETM's four branch PCs (etm[0..3]) */
-        uint32_t usp, ssp, stk[3], k;
+        uint32_t usp, ssp, stk[3];
         fm1_crash_regs(c, &usp, &ssp, stk);           /* (hal/fm1_irq_extra.h: since 1.8.1 the BSP keeps them) */
         {
             const uint32_t v[16] = {c->vec, c->pc, c->emu, c->dbg, c->rets, c->sp, c->psr, ssp,
@@ -45,9 +45,12 @@ static void fm1_fault(const fm1_crash_t *c)
             }
         }
     }
-    t0 = fm1_ticks();
-    while ((uint32_t)(fm1_ticks() - t0) < 4000u * 1000u * FM1_TICKS_PER_US)
-        ;
+    for (k = 0; k < 10u; k++) {                       /* 10 s (was 4: time for a photo of it, after SLOOP 2.7.1); */
+        fm1_wdt_feed();                               /* the watchdog fed each second (fm1_cstart arms it at 8 s) */
+        t0 = fm1_ticks();
+        while ((uint32_t)(fm1_ticks() - t0) < 1000u * 1000u * FM1_TICKS_PER_US)
+            ;
+    }
     fm1_reboot();
 }
 
@@ -285,6 +288,12 @@ void fm1_cstart(void)
                                                 * cleared below */
 #endif
     fm1_time_init();
+    fm1_vdc14_raise(7);                         /* the supplies at M-VAVE's own (its V15 app): VDC14 1.60 V, then SYSVDD */
+    fm1_sysvdd_raise(15);                       /* 1.38 V (felucca-bsp chip/fm1_sys.h). The boot loader leaves 1.40 / 1.26 V,
+                                                 * where with both cores busy some FM-1s read flash and SRAM one bit wrong:
+                                                 * core 0 crashed here in drum_render (DBG_MSG bit 20, TANH_Q15's address
+                                                 * bad) within seconds with 2ND CORE ON, never OFF. After X0X 1.0.9
+                                                 * (fm1-x0x#21) and SLOOP 2.7, which run both cores clean at these */
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;
     src = fm1_boot.rst_src;
