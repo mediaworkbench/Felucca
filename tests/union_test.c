@@ -10,7 +10,9 @@
  * Each sequence runs in its own fork()ed child from boot state; its mix is one 64-bit FNV-1a hash. The file
  * holds the hashes of 1.4 (the engines' own arrays, before the shared region): any difference fails. The 380
  * sequences that play SAMPLE's PIANO (SAMPLE presets 0 / 1, GRAIN's FROZEN / SHIMMER) were rewritten in 1.5, when
- * PIANO went back to the full piano of 1.1.5; the other 340 are 1.4's.
+ * PIANO went back to the full piano of 1.1.5; the other 340 are 1.4's. This fork (core.h: no SAMPLE, SLICE, built-in
+ * sets) switches between the engines it has, 396 sequences: tests/union_golden.txt was rewritten for them (GRAIN plays
+ * its sine fallback there, no sample).
  * env: GOLDEN_UPDATE=1 rewrites GOLDEN_FILE (only with a reason: a switch is to sound as it did). */
 #define main hostsim_main
 #include "hostsim.c"
@@ -55,7 +57,11 @@ static void uplay(track_t *t, uint32_t e, uint32_t pi, uint32_t base, uint32_t w
     urun(250);                                   /* still ringing at the next switch */
 }
 
-static const uint32_t UE[] = {0 /* ANALOG */, ENGI_SAMPLE, 7 /* WHEEL */, 8 /* GRAIN */, ENGI_PHYS, ENGI_DRUM, ENGI_FM6,
+static const uint32_t UE[] = {0 /* ANALOG */,
+#if FELUCCA_SAMPLE
+                              ENGI_SAMPLE,
+#endif
+                              7 /* WHEEL */, 8 /* GRAIN */, ENGI_PHYS, ENGI_DRUM, ENGI_FM6,
 #if FELUCCA_SLICE
                               13 /* SLICE */
 #endif

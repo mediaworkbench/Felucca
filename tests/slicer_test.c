@@ -181,7 +181,7 @@ static void song_setup(void)
     song.g[G_BPM] = 120;
     host_preset(t1, 0, 4);
     host_preset(t2, 1, 5);
-    host_preset(t3, 3, 0);
+    host_preset(t3, TRK_DEF[2][0], TRK_DEF[2][1]);   /* the power-on lead: LOFI PULSE LD (FELUCCA_LOFI=0: DCO STRINGS) */
     host_drums(td);                                /* DRUM KIT (SAMPLE PERC until 1.0.2) */
     for (i = 0; i < 16u; i++) {
         uint8_t n = ACID[i];

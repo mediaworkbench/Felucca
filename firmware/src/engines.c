@@ -27,9 +27,13 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 
 #include "../engines/src/eng_analog.c"   /* Felucca-Engines (MIT): ANALOG LOFI TRIO WHEEL NOISE */
 #include "../engines/src/eng_phase.c"   /* Felucca-Engines (MIT): PHASE */
+#if FELUCCA_LOFI
 #include "../engines/src/eng_lofi.c"
-#include "eng_sample.c"
+#endif
+#include "eng_sample.c"         /* (with FELUCCA_SAMPLE=0 too: GRAIN's zones, decoder and user slots) */
+#if FELUCCA_VOICE
 #include "eng_formant.c"
+#endif
 #include "../engines/src/eng_trio.c"
 #include "../engines/src/eng_wheel.c"
 #include "eng_grain.c"
@@ -44,8 +48,9 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
-#if !FELUCCA_SLICE || !T303_ON
-/* an engine number this build reserves (13 without SLICE, FELUCCA_SLICE=0; 15 without the 303): never selectable,
+#if !FELUCCA_SLICE || !T303_ON || !FELUCCA_SAMPLE || !FELUCCA_LOFI || !FELUCCA_VOICE
+/* an engine number this build reserves (13 without SLICE, FELUCCA_SLICE=0; 15 without the 303; this fork's 3 LOFI,
+ * 4 SAMPLE, 5 VOICE with their switches 0): never selectable,
  * never stored (eng_stored_ok), silent */
 static void gone_note_on(struct track *t, voice_t *v) { (void)t; (void)v; }
 static void gone_render(struct track *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
@@ -82,9 +87,21 @@ static const engine_t *const ENGINES[NENGINES] = {
     &ENG_FM4_GONE,               /* 1: reserved (DIGITAL, retired: its sounds convert to FM6, fm4_convert.c) */
 #endif
     &ENG_PHASE,                  /* 2 */
-    &ENG_LOFI,                   /* 3 */
-    &ENG_SAMPLE,                 /* 4 */
+#if FELUCCA_LOFI
+    &ENG_LOFI,                   /* 3 (ENGI_LOFI) */
+#else
+    &ENG_GONE,                   /* 3: reserved (FELUCCA_LOFI=0) */
+#endif
+#if FELUCCA_SAMPLE
+    &ENG_SAMPLE,                 /* 4 (ENGI_SAMPLE) */
+#else
+    &ENG_GONE,                   /* 4: reserved (FELUCCA_SAMPLE=0) */
+#endif
+#if FELUCCA_VOICE
     &ENG_FORMANT,                /* 5 VOICE (eng_formant.c: "voice" is a sounding note in voice.c) */
+#else
+    &ENG_GONE,                   /* 5: reserved (FELUCCA_VOICE=0) */
+#endif
     &ENG_TRIO,                   /* 6 */
     &ENG_WHEEL,                  /* 7 */
     &ENG_GRAIN,                  /* 8 */
@@ -143,7 +160,11 @@ static const char *snd_missing(const track_t *t, uint32_t *code)
         return slc_get(si) ? 0 : N_SLC_SRC[si];
     }
 #endif
+#if FELUCCA_SAMPLE
     if (e != &ENG_SAMPLE && e != &ENG_GRAIN)
+#else
+    if (e != &ENG_GRAIN)
+#endif
         return 0;
     *code = (e == &ENG_GRAIN ? 32u : 1u) + si % 32u;
     return smp_set_missing(si) ? SMP_ALL_NAMES[si] : 0;
@@ -158,7 +179,17 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #if FELUCCA_FM4
     1,                           /* DIGITAL */
 #endif
-    2, 3, 4, 5, 6, 7, 8, 9,      /* PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN PHYS */
+    2,                           /* PHASE */
+#if FELUCCA_LOFI
+    3,                           /* LOFI */
+#endif
+#if FELUCCA_SAMPLE
+    4,                           /* SAMPLE */
+#endif
+#if FELUCCA_VOICE
+    5,                           /* VOICE */
+#endif
+    6, 7, 8, 9,                  /* TRIO WHEEL GRAIN PHYS */
     11,                          /* NOISE */
 #if FELUCCA_SLICE
     13,                          /* SLICE */
@@ -174,12 +205,13 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 _Static_assert(NELEM(ENGINE_ORDER) == NENG_SHOWN, "ENGINE_ORDER: every engine one can pick");
 
 /* the engines one can pick (engine 1 only with FELUCCA_FM4, 13 only with FELUCCA_SLICE, 14 not with FELUCCA_FM4, 15
- * with T303_ON), in ENGINE_ORDER: eng_ok(e), the n-th of them eng_vis(n), e's place among them eng_rank(e), the next /
+ * with T303_ON; 3, 4, 5 with FELUCCA_LOFI, FELUCCA_SAMPLE, FELUCCA_VOICE), in ENGINE_ORDER: eng_ok(e), the n-th of them eng_vis(n), e's place among them eng_rank(e), the next /
  * previous one eng_step(e, dir) (wraps) */
 static int eng_ok(uint32_t e)
 {
     return e < NENGINES && (FELUCCA_FM4 || e != ENGI_DIGITAL) && (FELUCCA_SLICE || e != ENGI_SLICE) &&
-           (!FELUCCA_FM4 || e != ENGI_DCO) && (T303_ON || e != ENGI_303);
+           (!FELUCCA_FM4 || e != ENGI_DCO) && (T303_ON || e != ENGI_303) && (FELUCCA_LOFI || e != ENGI_LOFI) &&
+           (FELUCCA_SAMPLE || e != ENGI_SAMPLE) && (FELUCCA_VOICE || e != ENGI_VOICE);
 }
 /* an engine number a project may hold: one this build plays, or DIGITAL (its sounds load as FM6, fm4_track) */
 static int eng_stored_ok(uint32_t e) { return eng_ok(e) || e == ENGI_DIGITAL; }
@@ -242,6 +274,14 @@ static const struct {
 #define NPATTERNS (sizeof PATTERNS / sizeof PATTERNS[0])
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
-static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0}, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
-                                                                       * FM6 PAD (was DIGITAL PAD), LOFI PULSE LD, DRUM KIT */
+/* this fork: track 3 is DCO STRINGS without LOFI (FELUCCA_LOFI=0; upstream's LOFI PULSE LD with it) */
+#if FELUCCA_LOFI
+#define TRK_DEF_LEAD {ENGI_LOFI, 0, 0}
+#elif FELUCCA_FM4
+#define TRK_DEF_LEAD {0, 0, 0}           /* (FELUCCA_FM4 has no DCO: ANALOG SAW LEAD) */
+#else
+#define TRK_DEF_LEAD {ENGI_DCO, 0, 0}
+#endif
+static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, TRK_DEF_LEAD, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
+                                                                       * FM6 PAD (was DIGITAL PAD), DCO STRINGS (LOFI PULSE LD), DRUM KIT */
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }

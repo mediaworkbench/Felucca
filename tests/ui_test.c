@@ -497,6 +497,7 @@ static int test_sound_loads(void)
     project_load(1);
     bad += check("a project load drops the copy and takes none", undo.trk == 0 && undo_depth == 0);
     ui_power_on();
+#if FELUCCA_SAMPLE                             /* (this fork's FELUCCA_SAMPLE=0: no SAMPLE engine, no built-in sets) */
     bad += check("SAMPLE factory browsing has four melodic presets and no PERC",
                  ENGINES[4]->npresets == 4u && str_eq(ENGINES[4]->presets[0].name, "PIANO") &&
                  str_eq(ENGINES[4]->presets[3].name, "SAX"));
@@ -525,6 +526,7 @@ static int test_sound_loads(void)
                      str_eq(sd->names[7], "USR3") && sd->max == 7 &&
                      enum_orig(&ENGINES[8]->edit[0], SMP_SET_PERC) == 0 && SMP_SETS[SMP_SET_PERC].z0 == SMP_SETS[0].z0);
     }
+    /* SAMPLE PERC's old projects and sounds -> DRUM (this fork without SAMPLE, FELUCCA_SAMPLE=0: no such sounds to load) */
     host_legacy_sample_perc(t);                /* SAMPLE PERC (SET 4, retired after 1.0.2): every load gives DRUM */
     t->preset = 4;                             /* a project written before the factory removal */
     my_steps(t);
@@ -597,6 +599,7 @@ static int test_sound_loads(void)
                  !memcmp(trk[3].step, before.step, sizeof trk[3].step));
     bad += check("  their GM hits play as drums", gm_hits_play(&trk[3]));
     bad += check("  its old drum channel (10, in id 24) loads as REVERB TYPE ROOM", song.g[G_RTYPE] == 0);
+#endif
     printf("ui: undo copy %u bytes\n", (unsigned)sizeof undo);
     return bad;
 }
@@ -1474,7 +1477,8 @@ static int test_categories(void)
             n += preset_cat(e, k) == CAT_BASS;
     bad += check("  KNOB 4: ALL, FAV, then BASS: the list holds the factory basses only, the sound not loaded",
                  list_mode() == 2u && str_eq(list_name(list_mode()), "BASS") && !favorites.filter && ui_lcat == CAT_BASS &&
-                 total == n && n >= 6u && pos == total && TSEL->eng_req == 0u && TSEL->preset == 0u);
+                 total == n && n >= (FELUCCA_LOFI ? 6u : 5u) && pos == total && TSEL->eng_req == 0u && TSEL->preset == 0u);
+                                                       /* (5: this fork without LOFI, with FELUCCA_FM4=1 no DCO / 303 either) */
     ok = 1;
     for (i = 0; i < total; i++) {
         turn(EN_PRESET, 1);
@@ -3105,6 +3109,7 @@ static int test_product_ux(void)
         ok &= changed;
     }
     bad += check("all palettes: active column is subtle, stable-size, no zoom over graph", ok);
+#if FELUCCA_SAMPLE                           /* (SAMPLE's waveform: this fork's FELUCCA_SAMPLE=0 has no SAMPLE engine) */
     ui_power_on(); set_engine_of(TSEL, 4); open_family(FAM_EDIT);
     memset(&sample_wave, 0, sizeof sample_wave); last_note = 60;
     voice_t voices[NVOICE]; memcpy(voices, TSEL->v, sizeof voices);
@@ -3123,6 +3128,7 @@ static int test_product_ux(void)
     }
     ok &= !memcmp(lo, sample_wave.lo, sizeof lo) && !memcmp(hi, sample_wave.hi, sizeof hi);
     bad += check("sample waveform is bounded, matches audio IMA decode and leaves voices intact", ok);
+#endif
     ui_power_on(); return bad;
 }
 
@@ -3740,6 +3746,7 @@ static int test_sample_alert(void)
     bad += check("missing sample: the power-on sounds have their samples (no alert)", !snd_missing(&trk[0], &i) &&
                  !snd_missing(&trk[1], &i) && !snd_missing(&trk[2], &i) && !snd_missing(&trk[3], &i) &&
                  !str_eq(ui.msg, nf));
+#if FELUCCA_SAMPLE                                  /* (SAMPLE's SET: this fork's FELUCCA_SAMPLE=0 has no SAMPLE engine) */
     set_engine_of(TSEL, ENGI_SAMPLE);
     TSEL->p[P_E0] = (int16_t)(SMP_NSETS + 1u);      /* SET USR2: empty */
     frame();
@@ -3762,6 +3769,7 @@ static int test_sample_alert(void)
     ok &= msg_is(nf);
     bad += check("SAMPLE: another empty slot is said; back to it after a sample: said again", ok);
     frames(1500);
+#endif
     set_engine_of(TSEL, 8u);                         /* GRAIN, SRC USR2 */
     TSEL->p[P_E0] = (int16_t)(SMP_NSETS + 1u);
     frame();
@@ -3780,7 +3788,7 @@ static int test_sample_alert(void)
     frames(1500);
 #endif
     /* a project with an empty slot: said after LOADED */
-    set_engine_of(TSEL, ENGI_SAMPLE);
+    set_engine_of(TSEL, FELUCCA_SAMPLE ? ENGI_SAMPLE : 8u);   /* (GRAIN without SAMPLE: FELUCCA_SAMPLE=0) */
     TSEL->p[P_E0] = (int16_t)(SMP_NSETS + 1u);
     frames(1500);
     project_save(2);
@@ -4145,9 +4153,11 @@ static int test_quick_layers(void)
     bad += check("  the first 13 engines in PRESETS order have their white keys from F3 (ADPCM, the 14th, only with ENG; never DIGITAL)",
                  ok && a == LY_INIT && LY_INIT == NENG_SHOWN - FELUCCA_ADPCM);
     set_engine_of(TSEL, 0);
-    lay_combo(B_EDIT, white(eng_rank(3))); key_up(white(eng_rank(3))); frame();
+#define LY_ENG (FELUCCA_LOFI ? 3u : 6u)                /* LOFI (this fork without it, FELUCCA_LOFI=0: TRIO) */
+    lay_combo(B_EDIT, white(eng_rank(LY_ENG))); key_up(white(eng_rank(LY_ENG))); frame();
     turn(EN_K2, 1);
-    ok = TSEL->eng_req == 3u && TSEL->preset == 1u;
+    ok = TSEL->eng_req == LY_ENG && TSEL->preset == 1u;
+#undef LY_ENG
     turn(EN_K3, 1);
     ok &= preset_favorite();
     oct_back();
@@ -4158,6 +4168,7 @@ static int test_quick_layers(void)
     ok = TSEL->eng_req == eng_step(0, 1);
     btn_up(B_EDIT); frame();
     bad += check("  KNOB 1: the next engine", ok);
+#if FELUCCA_SAMPLE                                      /* (this fork's FELUCCA_SAMPLE=0: no SAMPLE engine) */
     {                                                   /* #124: SAMPLE's alias (1 = PIANO) is not a stop on KNOB 2 */
         uint32_t tot, n, c0, c1, c2, seen = 0, alias = 0;
         set_engine_of(TSEL, ENGI_SAMPLE); go_home(); frame();
@@ -4188,6 +4199,7 @@ static int test_quick_layers(void)
         btn_up(B_EDIT); frame();
         bad += check("  #124 SAMPLE: KNOB 2 right PIANO, FLUTE, SAX (No. 1 2 3), both ways round the list, never the alias", ok);
     }
+#endif
     song.playing = 0;
     lay_combo(B_EDIT, white(LY_INIT));
     ok = ui.confirm == CF_INIT_SOUND;
@@ -5126,7 +5138,8 @@ static int test_fm4_retired(void)
         if (e < NENGINES)
             seen |= 1u << e;
     }
-    bad += check("PRESETS: the list holds every engine's presets but DIGITAL's", seen == all && NENG_SHOWN == NENGINES - 1u - !T303_ON);
+    bad += check("PRESETS: the list holds every engine's presets but DIGITAL's", seen == all && NENG_SHOWN == NENGINES - 1u - !T303_ON -
+                 !FELUCCA_SLICE - !FELUCCA_SAMPLE - !FELUCCA_LOFI - !FELUCCA_VOICE);   /* (this fork's switches: core.h) */
     go_page(GR_BROWSE);
     set_engine_of(TSEL, 0);
     for (i = 0, seen = 0; i < NENG_SHOWN; i++) {
@@ -5137,8 +5150,21 @@ static int test_fm4_retired(void)
                  seen == all && TSEL->eng_req == 0u && eng_step(0, 1) == ENGI_FM6 && eng_step(ENGI_FM6, 1) == 2u &&
                  eng_step(ENGI_FM6, -1) == 0u && eng_step(0, -1) == (T303_ON ? ENGI_303 : ENGI_DCO));
     {   /* the display order (engines.c ENGINE_ORDER): every engine one can pick once; the PRESETS list follows it */
-        static const char *const ORDER[] = {"ANALOG", "FM6", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
-                                            "PHYS", "NOISE", "SLICE", "DRUM", "DCO", "303"};
+        static const char *const ORDER[] = {"ANALOG", "FM6", "PHASE",
+#if FELUCCA_LOFI                                /* (this fork leaves LOFI, SAMPLE, VOICE, SLICE out by default: core.h) */
+                                            "LOFI",
+#endif
+#if FELUCCA_SAMPLE
+                                            "SAMPLE",
+#endif
+#if FELUCCA_VOICE
+                                            "VOICE",
+#endif
+                                            "TRIO", "WHEEL", "GRAIN", "PHYS", "NOISE",
+#if FELUCCA_SLICE
+                                            "SLICE",
+#endif
+                                            "DRUM", "DCO", "303"};
         uint32_t last = 0xFFu, r = 0, n = 0;
         ok = NENG_SHOWN == NELEM(ORDER) - !T303_ON;      /* (FELUCCA_303=0: no 303, engine 15 reserved) */
         for (i = 0; ok && i < NENG_SHOWN; i++)

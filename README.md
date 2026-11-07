@@ -44,8 +44,16 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
   turn random steps on or off, only into steps the model has; 0 and 100 % are exact. OCT- draws a run of a quarter of the line
   (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
 
-Compatibility: the engine order is append-only, so existing projects and sounds load unchanged and every earlier golden
-render is bit for bit as before. Upstream's ADPCM engine (its engine 14, off by default there) is not
+- **Fewer engines, more room.** SAMPLE (4), SLICE (13), LOFI (3) and VOICE (5) and the built-in sample sets (PIANO,
+  FLUTE, SAX, SLICE's BREAK) are left out of the build by default (`FELUCCA_SAMPLE`, `FELUCCA_SLICE`, `FELUCCA_LOFI`,
+  `FELUCCA_VOICE` = 0; `=1` brings each back): about 143 KB of flash for new engines and sounds. Their numbers stay
+  reserved. GRAIN stays and plays the user sample slots USR1..3 (uploaded with the web editor); its factory sounds use
+  USR1. Track 3 starts as DCO STRINGS (was LOFI PULSE LD). The engines: ANALOG, FM6, PHASE, TRIO, WHEEL, GRAIN, PHYS,
+  NOISE, DRUM, DCO, 303; on the EDIT layer INIT is the key after them (C5, was G5). A project (or backup) with a track on
+  one of the four left out is not loaded (EMPTY); a user preset of one plays as FM6.
+
+Compatibility: the engine order is append-only, so projects and sounds of the engines built load unchanged, and with
+all four switches at 1 every earlier golden render is bit for bit as before. Upstream's ADPCM engine (its engine 14, off by default there) is not
 available here: 14 is DCO and 15 the 303 (`FELUCCA_ADPCM=1` stops the build). Firmware up to 1.6.1 resets the new DCO favourites setting (PER5) and shows projects that use
 the DCO engine as EMPTY.
 

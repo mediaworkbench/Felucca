@@ -222,6 +222,9 @@ mkdir -p "$OUT"
 # the hardware layer: firmware/hal, then felucca-bsp (firmware/bsp: chip/, boards/fm1/), as tools/build.py
 HALI="-Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 -Ifirmware/src"   # (src: uac_fir.h, which bsp/chip/usb.c includes)
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function $HALI"
+# this fork leaves SAMPLE, LOFI and VOICE out (src/core.h); the old-format tests load projects that use them, so they
+# are built with them (upstream's engine set; no sample data needed)
+ENG_ALL="-DFELUCCA_SAMPLE=1 -DFELUCCA_LOFI=1 -DFELUCCA_VOICE=1"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
@@ -301,7 +304,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
     mkdir -p build/tracks_demo
     run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
-    $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
+    $CC -w $ENG_ALL -Ibuild/gen -Ifirmware/src -o "$OUT/project_test" tests/project_test.c -lm
     run "project formats (FUN1..FUN5 -> FUN6, the grid and song chain; DIGITAL tracks -> FM6, SAMPLE PERC -> DRUM)" "$OUT/project_test"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -o "$OUT/motion_test" tests/motion_test.c -lm
     run "motion, whole-step chance, FUN7 migration, song restore, ARP repeat and the 1.2 ARP modes" "$OUT/motion_test"
@@ -443,7 +446,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     "$OUT/fe_host" > "$OUT/fe_renders.txt" || fail=1
     run "Felucca-Engines with Felucca's tables: the engines' golden renders" diff -u firmware/engines/tests/golden.txt "$OUT/fe_renders.txt"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/union_test" tests/union_test.c -lm
-    run "engine memory (1.5): every switch between the engines with per-part state sounds as in 1.4 (720 sequences)" \
+    run "engine memory (1.5): every switch between the engines with per-part state, against union_golden.txt (this fork's engines: 396 sequences; upstream 720 as in 1.4)" \
         "$OUT/union_test" tests/union_golden.txt
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/descdump" tests/descdump.c -lm
     echo "== parameter and engine tables as JSON (for the editor mock test)"
@@ -501,7 +504,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
     mkdir -p build/fm6_demo
     run "FM6: algorithms, envelopes, retrigger, DC, clipping, macros, patch formats, voices, cost, demos" "$OUT/fm6_test" build/fm6_demo
-    # SLICE is in the standard build (firmware/src/core.h): its test always runs (after #22 by andreahaku)
+    # SLICE: its test runs when it is built (after #22 by andreahaku); this fork leaves it out by default (core.h
+    # FELUCCA_SLICE 0): a build without BREAK is a skip, unless FELUCCA_SLICE=1 asks for it
     if grep -q '^#define SLC_BREAK_BPM ' build/gen/felucca_samples.h; then
         mkdir -p build/slice_demo
         python3 tests/slice_loop.py build/slice_demo/loop
@@ -510,8 +514,12 @@ if [ -f build/gen/felucca_tables.h ]; then
         run "SLICE: tables, onsets, reverse, keys, modes, MAN slices and their store, demos" "$OUT/slice_test" \
             build/slice_demo/loop build/slice_demo
     else
-        echo "== SLICE: build/ was made with FELUCCA_SLICE=0 (no BREAK); run ./build.sh without it first"
-        fail=1
+        if [ "${FELUCCA_SLICE:-0}" = 1 ]; then
+            echo "== SLICE: FELUCCA_SLICE=1, but build/ was made without it (no BREAK); run FELUCCA_SLICE=1 ./build.sh first"
+            fail=1
+        else
+            echo "== skip SLICE (FELUCCA_SLICE=0, this fork's default: no SLICE engine)"
+        fi
     fi
     # SAMPLE's PIANO (1.5: as 1.1.5), SLICE's PIANO (its middle C zone), 1.2's PIANO HD in a user slot
     if grep -q '^    {"PIANO", 0, 5},' build/gen/felucca_samples.h; then
@@ -559,7 +567,8 @@ else
     $SCC -DOWN_PKG=1 -o "$A/ota_test" tests/ota_test.c
     run "ASan/UBSan: M-UPGRADE entry (own loader)" "$A/ota_test" build/felucca.fwsc
     for t in editor_test project_test backup_test robust_test fun10_test fm6bank_test midi_drift_test; do
-        $SCC -o "$A/$t" tests/$t.c -lm
+        e=""; [ "$t" = project_test ] && e="$ENG_ALL"
+        $SCC $e -o "$A/$t" tests/$t.c -lm
         run "ASan/UBSan: $t" "$A/$t"
     done
     $SCC -DTIMER5_SYNTH_TEST=1 -o "$A/timer5_cc_clock_test" tests/timer5_midi_test.c -lm

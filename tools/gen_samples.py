@@ -414,8 +414,14 @@ class Builder:
 
 
 def slice_on():
-    """the SLICE engine is built (src/core.h: on unless FELUCCA_SLICE=0)"""
-    return os.environ.get("FELUCCA_SLICE", "1") != "0"
+    """the SLICE engine is built (src/core.h: this fork's default is off, FELUCCA_SLICE=1 builds it)"""
+    return os.environ.get("FELUCCA_SLICE", "0") != "0"
+
+
+def samples_on():
+    """the SAMPLE engine and its built-in sets (src/core.h FELUCCA_SAMPLE: this fork's default is off; without them
+    the header is the no-library one, GRAIN plays the user slots)"""
+    return os.environ.get("FELUCCA_SAMPLE", "0") != "0"
 
 
 def input_key(have_cc0):
@@ -424,7 +430,7 @@ def input_key(have_cc0):
     here = Path(__file__).resolve().parent
     for p in (here / "gen_samples.py", here / "sampleio.py"):
         h.update(p.read_bytes())
-    h.update(repr((sys.version_info[:2], have_cc0, slice_on())).encode())   # sum() differs across versions
+    h.update(repr((sys.version_info[:2], have_cc0, slice_on(), samples_on())).encode())   # sum() differs across versions
     files = sorted(GENDIR.glob("*.wav"))
     if have_cc0:
         files += sorted(CC0.glob("*/*.wav"))
@@ -436,8 +442,10 @@ def input_key(have_cc0):
 
 def main(out):
     subprocess.run([sys.executable, str(Path(__file__).with_name("gen_waves.py")), str(GENDIR)], check=True)
-    have_cc0 = CC0.exists() and any(CC0.glob("*/*.wav"))
-    if not have_cc0:
+    have_cc0 = samples_on() and CC0.exists() and any(CC0.glob("*/*.wav"))
+    if not samples_on():
+        print("samples: FELUCCA_SAMPLE=0 - no SAMPLE sets")
+    elif not have_cc0:
         print("samples: CC0 library not fetched (tools/fetch_cc0.py) - no SAMPLE sets")
     key = input_key(have_cc0)
     try:

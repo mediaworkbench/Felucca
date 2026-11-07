@@ -940,7 +940,8 @@ static __attribute__((noinline)) void mix_spread(track_t *t, int32_t *b, uint32_
  * when built, nothing when retired. An estimate: it only steers the split, the sound does not depend on it */
 #if FELUCCA_CPU2
 static uint16_t part_cost[NTRK];                        /* the last block's, per part */
-static const uint16_t ENG_VCOST[NENGINES] = {163, FELUCCA_FM4 ? 181 : 0, 162, 67, 70, 174, 144, 143, 189, 309, 113, 134,
+static const uint16_t ENG_VCOST[NENGINES] = {163, FELUCCA_FM4 ? 181 : 0, 162, FELUCCA_LOFI ? 67 : 0,
+                                             FELUCCA_SAMPLE ? 70 : 0, FELUCCA_VOICE ? 174 : 0, 144, 143, 189, 309, 113, 134,
                                              181, FELUCCA_SLICE ? 129 : 0, 290, T303_ON ? 240 : 0};   /* (.., SLICE, DCO,
                                                                                                   * 303) */
 #endif

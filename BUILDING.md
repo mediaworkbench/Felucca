@@ -78,7 +78,10 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_UAC_AS_FIRST` | 1 | the audio control header lists the audio streaming interface before the MIDI one, so the USB audio driver of older macOS (up to 15) finds it; `0`: 1.0 to 1.5's order, byte for byte (`firmware/bsp/chip/usb.c`) |
 | `FELUCCA_CPU2` | 1 | the second core is built in (MENU > SYSTEM > 2ND CORE, OFF by default); `0`: none of it, 1.6's one-core code and RAM (`firmware/bsp/chip/fm1_cpu1.h`, `firmware/src/fx.c`) |
 | `FELUCCA_UART` | 1 | TRS MIDI IN |
-| `FELUCCA_SLICE` | 1 | the SLICE engine (`0`: engine 13 reserved, so DCO stays 14) |
+| `FELUCCA_SLICE` | 0 | the SLICE engine and its BREAK (`0`: engine 13 reserved, so DCO stays 14; this fork's default, upstream's is 1) |
+| `FELUCCA_SAMPLE` | 0 | the SAMPLE engine (4) and the built-in sample sets PIANO, FLUTE, SAX (`tools/gen_samples.py`); `0`: engine 4 reserved, GRAIN plays the user slots USR1..3 only (this fork's default) |
+| `FELUCCA_LOFI` | 0 | the LOFI engine (3, Felucca-Engines); `0`: reserved (this fork's default) |
+| `FELUCCA_VOICE` | 0 | the VOICE engine (5, `firmware/src/eng_formant.c`); `0`: reserved (this fork's default) |
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_303` | 1 | the 303 engine (X0X's Open303, `firmware/src/eng_303.c`, `x0x/`) and TB-3PO, its ARP (`0`: engine 15 reserved, no float code) |
 | `FELUCCA_AICD` | 1 | TB-3PO's MODE AICD: Aicd's acid line model (`assets/aicd/lm.js`, ~24 KB of flash as `build/gen/felucca_aicd.h` by `tools/gen_aicd.py`); `0`: no MODEL page, TB-3PO's own lines only |

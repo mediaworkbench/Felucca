@@ -14,7 +14,21 @@
 #define NSTEP 64
 #define HALF_FRAMES 128          /* I2S half buffer: 2.9 ms at 44.1 kHz (a key waits 0..1 half, then plays 1 half later) */
 #ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 1          /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it */
+#define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it (this
+                                  * fork's default: its BREAK and code make room for new engines; upstream's is 1) */
+#endif
+/* this fork's engine trim (upstream builds all of them: FELUCCA_<NAME>=1 brings each back, its number unchanged; a
+ * reserved slot as SLICE's 13: engines.c ENG_GONE, never selectable) */
+#ifndef FELUCCA_SAMPLE
+#define FELUCCA_SAMPLE 0         /* the SAMPLE engine (eng_sample.c), engine 4, and the built-in sample sets (PIANO FLUTE
+                                  * SAX, tools/gen_samples.py); 0: GRAIN plays the user slots USR1..3 only (eng_sample.c's
+                                  * zones, decoder and slots stay: GRAIN's) */
+#endif
+#ifndef FELUCCA_LOFI
+#define FELUCCA_LOFI 0           /* the LOFI engine (Felucca-Engines eng_lofi.c), engine 3 */
+#endif
+#ifndef FELUCCA_VOICE
+#define FELUCCA_VOICE 0          /* the VOICE engine (eng_formant.c), engine 5 */
 #endif
 #ifndef FELUCCA_FM4
 #define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, four-operator FM): kept in the tree, not built
@@ -41,6 +55,8 @@
 #define NENGINES 16              /* the engine numbers (engines.c ENGINES[]: append-only): SLICE 13 (FELUCCA_SLICE=0: a
                                   * reserved slot, so DCO keeps its number), DCO 14, 303 15 */
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
+#define ENGI_LOFI 3u             /* reserved with FELUCCA_LOFI=0, as SLICE */
+#define ENGI_VOICE 5u            /* reserved with FELUCCA_VOICE=0, as SLICE (ENGI_SAMPLE 4: below) */
 #define ENGI_SLICE 13u           /* reserved with FELUCCA_SLICE=0: never selectable, never stored (eng_stored_ok) */
 #define ENGI_303 15u             /* reserved with FELUCCA_303=0 (and FELUCCA_FM4), as SLICE */
 #define T303_ON (FELUCCA_303 && !FELUCCA_FM4)   /* the 303 can be picked */
@@ -52,7 +68,8 @@
 /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order of engines.c ENGINE_ORDER. DCO
  * (14) and 303 (15) not with FELUCCA_FM4 (a test build of the retired DIGITAL: the EDIT layer's keys hold 15 engines at
  * most, ui_layer.c) */
-#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SLICE - FELUCCA_FM4 - !T303_ON)
+#define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SLICE - FELUCCA_FM4 - !T303_ON - !FELUCCA_SAMPLE - !FELUCCA_LOFI - \
+                    !FELUCCA_VOICE)
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */

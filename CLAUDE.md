@@ -92,7 +92,10 @@ a second core renders some parts (`bsp/chip/fm1_cpu1.h`, `C1_*` in `core.h`); ou
 sharing a budget of 8 voices (`voice.c`). Engines implement the interface in
 `firmware/engines/src/felucca_engine.h`. ANALOG, LOFI, TRIO, WHEEL, NOISE and the shared `dsp.c` live in the
 **Felucca-Engines submodule (MIT)**: changes to them belong in that repository. The others (`eng_*.c` here) are
-GPL. DIGITAL (`FELUCCA_FM4`) is retired: engine 1 is reserved and its sounds load as FM6 via `fm4_convert.c`.
+GPL. This fork leaves out SAMPLE (4), LOFI (3), VOICE (5) and SLICE (13) by default (`FELUCCA_SAMPLE` / `_LOFI` / `_VOICE` /
+`_SLICE` = 0, core.h; reserved slots, `ENG_GONE`), and with SAMPLE the built-in sample sets: GRAIN plays USR1..3 only
+(`eng_sample.c` stays built for it). Keep upstream's code under `#if` rather than deleting it, so merges stay clean.
+DIGITAL (`FELUCCA_FM4`) is retired: engine 1 is reserved and its sounds load as FM6 via `fm4_convert.c`.
 Upstream's ADPCM (`eng_adpcm.c`, upstream's engine 14) is in the tree but has no number in this fork: 14 is DCO, so
 `FELUCCA_ADPCM=1` stops the build (`core.h`); its `#if FELUCCA_ADPCM` blocks are kept as upstream has them for merges.
 Engine numbers are append-only (SLICE 13, DCO 14, 303 15); `NENGINES` is 16 in every build: a build without SLICE,

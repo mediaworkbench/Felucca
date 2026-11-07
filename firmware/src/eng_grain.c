@@ -432,12 +432,19 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     v->s[2] = y;
 }
 
+/* this fork without the built-in sets (FELUCCA_SAMPLE=0): every factory sound's SRC is USR1, the first user slot (a
+ * sine there until a sample is uploaded) */
+#if FELUCCA_SAMPLE
+#define GR_SRC(s) (s)
+#else
+#define GR_SRC(s) SMP_NSETS
+#endif
 static const preset_t GRAIN_PRESETS[] = {
     /* name, {SRC, POS, SIZE, DENS, PTCH, SPRD, RAND, TONE}, {A D S R}, fenv, mono */
-    {"CLOUD PAD", {2, 50, 92, 88, 0, 40, 14, 100}, {70, 90, 120, 90}, 0, 0, FX(0, 40, 25, 85), PAT(5)},
-    {"GLITCH", {3, 64, 24, 112, 0, 100, 90, 127}, {0, 70, 100, 30}, 0, 0, FX(10, 0, 50, 25), PAT(4)},
-    {"FROZEN", {0, 40, 108, 72, 0, 0, 10, 92}, {50, 100, 127, 100}, 0, 0, FX(0, 30, 20, 95), PAT(5)},
-    {"SHIMMER", {0, 30, 70, 100, 12, 30, 24, 110}, {30, 90, 110, 90}, 0, 0, FX(0, 50, 40, 90), PAT(7)},
+    {"CLOUD PAD", {GR_SRC(2), 50, 92, 88, 0, 40, 14, 100}, {70, 90, 120, 90}, 0, 0, FX(0, 40, 25, 85), PAT(5)},
+    {"GLITCH", {GR_SRC(3), 64, 24, 112, 0, 100, 90, 127}, {0, 70, 100, 30}, 0, 0, FX(10, 0, 50, 25), PAT(4)},
+    {"FROZEN", {GR_SRC(0), 40, 108, 72, 0, 0, 10, 92}, {50, 100, 127, 100}, 0, 0, FX(0, 30, 20, 95), PAT(5)},
+    {"SHIMMER", {GR_SRC(0), 30, 70, 100, 12, 30, 24, 110}, {30, 90, 110, 90}, 0, 0, FX(0, 50, 40, 90), PAT(7)},
 };
 
 static const engine_t ENG_GRAIN = {

@@ -10,7 +10,14 @@
 #else
 #define PROBE_ROW(s, r) ((chain_row_t){s, r})
 #endif
+#if FELUCCA_LOFI
 #define SONG_PROBE_GOLDEN 0x676A420Du              /* the firmware before lanes (bddbbd8), 11026 blocks */
+#elif FELUCCA_FM4
+#define SONG_PROBE_GOLDEN 0x707E420Du              /* this fork's FELUCCA_FM4=1 test build: no DCO, track 3 ANALOG SAW LEAD */
+#else
+#define SONG_PROBE_GOLDEN 0xF932420Du              /* this fork (FELUCCA_LOFI=0): track 3 powers on as DCO STRINGS, not
+                                                    * LOFI PULSE LD (the same song, its blocks; with LOFI: the above) */
+#endif
 #define SONG_PROBE_BLOCKS 11026u
 static uint32_t song_probe_mix(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t song_probe(uint32_t *blocks)

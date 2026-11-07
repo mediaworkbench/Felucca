@@ -267,7 +267,7 @@ static void job_song(const job_t *j)
     song.g[G_BPM] = 120;
     host_preset(t1, 0, 4);
     host_preset(t2, TRK_DEF[1][0], TRK_DEF[1][1]);
-    host_preset(t3, 3, 0);
+    host_preset(t3, TRK_DEF[2][0], TRK_DEF[2][1]);   /* the power-on lead: LOFI PULSE LD (FELUCCA_LOFI=0: DCO STRINGS) */
     host_drums(td);
     for (i = 0; i < 16u; i++) {
         uint8_t n = ACID[i];
@@ -479,7 +479,12 @@ static void midi_pkt(uint32_t st, uint32_t d1, uint32_t d2)   /* as usb.c: the q
  * fades within its one block), the VOICE part at most 4; then all off: every voice free */
 static int chk_budget(char *msg, uint32_t n)
 {
+#if FELUCCA_VOICE && FELUCCA_SAMPLE
     static const uint8_t E[NPART][2] = {{0, 1}, {1, 1}, {5, 1}, {4, 0}};   /* (SAMPLE PERC until 1.0.2) */
+#else
+    static const uint8_t E[NPART][2] = {{0, 1}, {1, 1}, {ENGI_DCO, 1}, {9, 0}};   /* this fork without VOICE / SAMPLE:
+                                                   * part 3 DCO (4 voices a part, as VOICE: the cap below), part 4 PHYS */
+#endif
     uint8_t held[NPART][128] = {{0}};
     uint32_t p, k, worst = 0, vworst = 0, fading = 0, kills0 = voice_kills;
     host_tracks_init();
@@ -1094,7 +1099,9 @@ int main(int argc, char **argv)
     add(J_CHECK, "voices: MONO keeps its note")->check = chk_keep_mono;
     add(J_CHECK, "voices: LEGATO keeps its note")->check = chk_keep_legato;
     add(J_CHECK, "voices: UNISON keeps its note")->check = chk_keep_unison;
+#if FELUCCA_VOICE
     add(J_CHECK, "voices: VOICE engine cap")->check = chk_voice_cap;
+#endif
     add(J_CHECK, "routing: no hanging notes")->check = chk_hang;
     run_jobs(J, nj, jobs_at_once);
 

@@ -589,8 +589,8 @@ static int cc_map_test(void)
     };
     int bad = 0, ok = 1; uint32_t i, e; int16_t before[P_COUNT];
     midi_test_reset();
-    bad += check("power-on parts: ANALOG, FM6, LOFI, DRUM", trk[0].eng_req == 0u && trk[1].eng_req == ENGI_FM6 &&
-                 trk[2].eng_req == 3u && trk[3].eng_req == ENGI_DRUM);
+    bad += check("power-on parts: ANALOG, FM6, LOFI (this fork: DCO), DRUM", trk[0].eng_req == 0u && trk[1].eng_req == ENGI_FM6 &&
+                 trk[2].eng_req == TRK_DEF[2][0] && trk[3].eng_req == ENGI_DRUM);
     for (i = 0; i < NELEM(COMMON); i++) {
         queued(0xB0, COMMON[i].cc, 127, 1);
         ok &= trk[0].p[COMMON[i].id] == TP[COMMON[i].id].max;
@@ -885,12 +885,14 @@ static int pc_test(void)
         ok &= !memcmp(was.p, t->p, sizeof was.p) && t->preset == was.preset && t->eng_req == e;
     }
     bad += check("  every engine: 0.. its presets in PRESETS' order (no alias twice); past the last ignored", ok);
+#if FELUCCA_SAMPLE                                   /* (this fork's FELUCCA_SAMPLE=0: no SAMPLE engine) */
     set_engine_of(t, ENGI_SAMPLE);
     pc(0, 1); frame();
     ok = str_eq(ENGINES[ENGI_SAMPLE]->presets[t->preset].name, "FLUTE");
     pc(0, 4); frame();
     ok &= t->eng_req == ENGI_SAMPLE && str_eq(ENGINES[ENGI_SAMPLE]->presets[t->preset].name, "FLUTE");
     bad += check("  SAMPLE: PC 1 is FLUTE (not PIANO's alias); PC 4 (once PERC) does not turn the track into DRUM", ok);
+#endif
 
     /* DRUM: the kits as KIT steps through them */
     {

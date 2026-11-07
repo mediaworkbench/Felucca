@@ -41,7 +41,9 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
 OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_custom": 558,
             "uac_tap48": 507,           # (absent from a FELUCCA_UAC_48K=0 or FELUCCA_UAC=0 build)
             "mix_part": 1754,
-            "adp_render": 2577, "adp_block": 102, "adp_post": 309}   # (ADPCM: built only with FELUCCA_ADPCM=1)           # (bsp/chip/libc.c: the word-wise memset / memcpy, longer loops, faster; FELUCCA_CPU2=1, the default since 1.6.1: out of line, either core may run it)
+            "adp_render": 2577, "adp_block": 102, "adp_post": 309,   # (ADPCM: built only with FELUCCA_ADPCM=1)
+            # this fork's engine switches (src/core.h, off by default): LOFI, SAMPLE, VOICE, SLICE when built
+            "lofi_render": 123, "sample_render": 128, "formant_render": 312, "slice_render": 436, "slc_rev": 120}   # (ADPCM: built only with FELUCCA_ADPCM=1)           # (bsp/chip/libc.c: the word-wise memset / memcpy, longer loops, faster; FELUCCA_CPU2=1, the default since 1.6.1: out of line, either core may run it)
 # a FELUCCA_CPU2=0 build (no mix_part: inlined into the audio ISR, as 1.6) has the one-core ISR, checked against this
 ONE_CORE = {"fm1_alnk0_irq": 13782}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
