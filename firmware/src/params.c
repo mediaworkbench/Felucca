@@ -448,7 +448,7 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK };   /* SC_TRK: the TRACK
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_MOD, GR_PATS, GR_SONG, GR_TOOLS, GR_CHORD, GR_SLICES, GR_EVENTS,
        GR_FMOP, GR_FMOP2, GR_FMENV, GR_INS,
-       GR_TB3GEN, GR_TB3SCL, GR_TB3MOD };   /* (GR_STEPS: SEQ TOOLS' knobs; GR_FMOP..: FM6's operator pages, ui_fm6op.c; GR_TB3..:
+       GR_TB3GEN, GR_TB3SCL, GR_TB3MOD, GR_DB1, GR_DB2 };   /* (GR_STEPS: SEQ TOOLS' knobs; GR_FMOP..: FM6's operator pages, ui_fm6op.c; GR_TB3..:
                                   * TB-3PO's, ui_tb3po.c) */
 
 typedef struct {
@@ -511,6 +511,10 @@ static const page_t PAGES[] = {
     {"GENERATE", FAM_ARP, SC_TRACK, GR_TB3GEN, {0xFF, 0xFF, 0xFF, 0xFF}},   /* DENS ACCENT SLIDE OCTS */
     {"SCALE", FAM_ARP, SC_TRACK, GR_TB3SCL, {0xFF, 0xFF, 0xFF, 0xFF}},      /* ROOT SCALE OCTAVE MUTATE */
     {"MODEL", FAM_ARP, SC_TRACK, GR_TB3MOD, {0xFF, 0xFF, 0xFF, 0xFF}},      /* MODE (1.6.2: TB-3PO, AICD; FELUCCA_AICD) */
+    /* ARP on a DRUM track, after ARP and ARP 2 (ui.c page_visible): DrumBrain, the pattern generator (ui_dbrain.c: its
+     * settings, not the track's parameters) */
+    {"BRAIN", FAM_ARP, SC_TRACK, GR_DB1, {0xFF, 0xFF, 0xFF, 0xFF}},         /* STYLE TEMP DENS CONTEXT */
+    {"BRAIN 2", FAM_ARP, SC_TRACK, GR_DB2, {0xFF, 0xFF, 0xFF, 0xFF}},       /* LANES BARS */
     {"STEP", FAM_SEQ, SC_STEP, GR_ROLL, {0, 1, 2, 3}},
     {"DETAIL", FAM_SEQ, SC_STEP, GR_ROLL, {0, 1, 2, 3}},   /* 1.5.1 (#199): the cursor step's CHANCE RATCH NUDGE VEL
                                                              * (ui.c detail_on, ui_input.c sd_turn) */
@@ -531,6 +535,7 @@ static const page_t PAGES[] = {
 static uint8_t mod_ui_slot;      /* the MOD page: the matrix slot (0..3) KNOB 2..4 edit */
 
 static const param_desc_t *tb3_desc(const page_t *pg, uint32_t slot, int16_t **vp);   /* (ui_tb3po.c) */
+static const param_desc_t *db_desc(const page_t *pg, uint32_t slot, int16_t **vp);    /* (ui_dbrain.c) */
 
 /* DCO's P_DRNG holds two switches, RANGE 16' 8' 4' and the VCA ENV / GATE / ADSR (eng_dco.c: range + 3 x the VCA's): on
  * the device two knobs, RANGE's KNOB 1 and the VCA page's (ENV), each its half, its value in dco_show (ui_input.c
@@ -562,6 +567,8 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->graph == GR_TB3GEN || pg->graph == GR_TB3SCL || pg->graph == GR_TB3MOD)   /* TB-3PO: its settings (a value
                                                                                          * each, ui_tb3po.c) */
         return tb3_desc(pg, slot, valp);
+    if (pg->graph == GR_DB1 || pg->graph == GR_DB2)   /* DrumBrain: its settings (ui_dbrain.c) */
+        return db_desc(pg, slot, valp);
     if (id == 0xFFu) {
         *valp = 0;
         return 0;

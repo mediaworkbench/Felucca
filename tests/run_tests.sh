@@ -187,6 +187,12 @@
 #                   within rounding), a draw's odds, its lines as Aicd's own sampler's (gate, accent, slide, key), the
 #                   DENS ACCENT SLIDE (0..100 %, fitted) and TEMP, MUTATE's run, the cost, the UI, auto MUTATE, a project, the same lines (a hash);
 #                   again with FELUCCA_AICD=0 (X0X's lines only).
+# DrumBrain (tests/dbrain_test.c, on the UI sources): the model in flash against tools/gen_dbrain.py's exact one (every
+#                   context, no interior node one, the longest-end lookup), the draw's odds and TEMP, generate() step for
+#                   step against a plain port of DrumBrain's, the sources (TOM, BELL by kit), DENS, the cost; the steps
+#                   (only LANES written, the velocity rule, repeated to LEN, VARY, CHANCE / RATCH kept, automation kept),
+#                   the UI (ARP on a DRUM track, OCT+ / OCT-, knobs, undo, a song refuses), a project; again with
+#                   FELUCCA_DBRAIN=0 (no pages).
 # DIGITAL -> FM6 (tests/fm4_test.c, built with FELUCCA_FM4=1): the retired four-operator engine against its conversion
 #                   (src/fm4_convert.c): routes and carriers per algorithm, the presets' PTCH, and the sound (pitch,
 #                   centroid, RMS envelope) of its presets and algorithms; demos in build/fm4_demo/. tests/digital_test.c
@@ -499,6 +505,12 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -O2 -w -ffp-contract=off -DFELUCCA_AICD=0 -Ibuild/gen -Ifirmware/src -o "$OUT/tb3po_test_noaicd" tests/tb3po_test.c \
         tests/ref/x0x_tb3po_ref.c -lm
     run "TB-3PO, a FELUCCA_AICD=0 build: X0X's lines, no MODEL page" "$OUT/tb3po_test_noaicd"
+    $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/dbrain_test" tests/dbrain_test.c -lm
+    python3 tools/gen_dbrain.py "$OUT/felucca_dbrain.h" "$OUT/dbrain_ref.txt" >/dev/null
+    run "DrumBrain: the model in flash, DrumBrain's generate() step for step, DENS, the steps, the UI, a project" \
+        "$OUT/dbrain_test" "$OUT/dbrain_ref.txt"
+    $CC -w -DFELUCCA_DBRAIN=0 -Ibuild/gen -Ifirmware/src -o "$OUT/dbrain_test_off" tests/dbrain_test.c -lm
+    run "DrumBrain, a FELUCCA_DBRAIN=0 build: no BRAIN pages" "$OUT/dbrain_test_off"
     $CC -w -DFELUCCA_303=0 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_no303" tests/ui_test.c -lm
     run "UI, a FELUCCA_303=0 build: engine 15 reserved, the EDIT layer's keys as before the 303" "$OUT/ui_test_no303"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm

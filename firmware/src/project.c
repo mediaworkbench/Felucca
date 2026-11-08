@@ -876,6 +876,8 @@ static void project_capture(project_t *p)
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
         if (trk[i].eng_req % NENGINES == ENGI_303)
             tb3_pack(i, p->fm6[i]);                     /* a 303 track: its TB-3PO settings in its FM6 area (tb3po.c) */
+        else if (trk[i].eng_req % NENGINES == ENGI_DRUM && db_touched(i))
+            db_pack(i, p->fm6[i]);                      /* a DRUM track's DrumBrain settings, once it has any (dbrain.c) */
         else
             fm6_pack(fm6_patch[i], p->fm6[i]);
     }
@@ -1103,7 +1105,12 @@ static int project_restore_runtime(const project_t *input)
             uint8_t v[FP_SIZE + 1u];
             if (!(e == ENGI_303 && tb3_unpack(k, p->fm6[k])))
                 tb3_unpack(k, FM6_INIT);                /* (not "TB3P": X0X's defaults) */
-            fm6_unpack(e == ENGI_303 ? FM6_INIT : p->fm6[k], v);
+            {
+                int db = e == ENGI_DRUM && db_unpack(k, p->fm6[k]);   /* a DRUM track's DrumBrain settings ("DBRN"), else */
+                if (!db)                                              /* the defaults and its area an FM6 patch, as ever */
+                    db_unpack(k, FM6_INIT);
+                fm6_unpack(e == ENGI_303 || db ? FM6_INIT : p->fm6[k], v);
+            }
             fm6_set_patch(k, v);
             fm6_adopt(k);
         }

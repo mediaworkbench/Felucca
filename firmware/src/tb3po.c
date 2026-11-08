@@ -233,6 +233,11 @@ static uint32_t tb3_new_seed(uint32_t entropy)       /* X0X tb3po_new_seed */
     return r ? r : 1u;
 }
 
+#if AICD_ON || DBRAIN_ON            /* (AICD's weights; a DRUM track's BRAIN pages, dbrain.c, too) */
+static const uint16_t AICD_EXP[16] = {65535, 62757, 60097, 57549, 55109, 52773, 50535, 48393, 46341, 44376, 42495,
+                                      40693, 38968, 37316, 35734, 34219};   /* 2^16 x 2^(-i/16) (the first 2^16 - 1) */
+#endif
+
 /* ---------------------------------------------------------- AICD mode --- */
 #if AICD_ON
 #include "felucca_aicd.h"
@@ -242,8 +247,6 @@ static uint32_t tb3_new_seed(uint32_t entropy)       /* X0X tb3po_new_seed */
  * instructions a step on the host, a 16-step MUTATE ~25 k (tests/tb3po_test.c). Every weight in 1/16 log2: the
  * record's (1/3 log2 under the likeliest) x 100 / TEMP, the biases on top, then 2^-w. */
 #define AICD_OFFSCALE 128        /* SCALE: a note off it 2^-8 as likely */
-static const uint16_t AICD_EXP[16] = {65535, 62757, 60097, 57549, 55109, 52773, 50535, 48393, 46341, 44376, 42495,
-                                      40693, 38968, 37316, 35734, 34219};   /* 2^16 x 2^(-i/16) (the first 2^16 - 1) */
 typedef struct { uint16_t n; uint8_t w; } aicd_edge_t;   /* an edge: its node, weight */
 typedef struct { uint32_t pos, last, n; } aicd_at_t;  /* node n: its record's edges at bit pos, its last symbol (step) */
 typedef struct { uint32_t k, mask; int32_t dens, acc, sld; } aicd_bias_t;

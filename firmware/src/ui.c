@@ -429,6 +429,8 @@ static uint32_t layer_btn(void);
  * track's (its patch's operators, ui_fm6op.c) */
 static int page_visible(uint32_t i)
 {
+    if (PAGES[i].graph == GR_DB1 || PAGES[i].graph == GR_DB2)   /* DrumBrain's: a DRUM track's, after its ARP and ARP 2 */
+        return DBRAIN_ON && TSEL->eng_req % NENGINES == ENGI_DRUM;
     if (PAGES[i].fam == FAM_ARP)                      /* ARP: TB-3PO's pages on a 303 track, the arp's on another */
         return (PAGES[i].graph == GR_TB3GEN || PAGES[i].graph == GR_TB3SCL || PAGES[i].graph == GR_TB3MOD) ==
                    (TSEL->eng_req % NENGINES == ENGI_303) && (PAGES[i].graph != GR_TB3MOD || AICD_ON);   /* (MODEL:
@@ -1780,6 +1782,7 @@ static void track_select(uint32_t i)
 #include "ui_events.c"                            /* SEQ > AUTOMATION: locks, events, CHANCE, RATCH as a list (an action page) */
 #include "midi_learn.c"                           /* MIDI LEARN (1.5): GLO + D4, a knob, a CC */
 #include "ui_tb3po.c"                             /* ARP on a 303 track: TB-3PO's GENERATE and SCALE (tb3po.c) */
+#include "ui_dbrain.c"                            /* ARP on a DRUM track: DrumBrain's BRAIN pages (dbrain.c) */
 
 /* ---------------------------------------------------- action pages --- */
 /* Pages whose purpose is an action (SAVE > USER, PHRASES, PROJECT, TOOLS, EDIT > SLICES, SEQ > AUTOMATION): the knobs pick,

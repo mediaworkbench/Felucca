@@ -327,6 +327,39 @@ static void graph_tb3(const track_t *t, uint16_t c)
         cv_rect(TB3_X0 + (int32_t)(t->seq_idx * TB3_W / len), TB3_Y0 - 2, 1, TB3_H + 4, T_ACCENT);
 }
 
+/* ARP on a DRUM track (BRAIN, BRAIN 2, ui_dbrain.c): the whole pattern, 8 lanes x LEN steps across the panel, an accent
+ * in TEXT, the step playing; over it the style and the seed */
+#define DB_ROW 11
+static void graph_dbrain(const track_t *t, uint16_t c)
+{
+    static const char HEX[] = "0123456789ABCDEF";
+    const db_cfg_t *g = &db_cfg[trk_index(t)];
+    uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, l;
+    char b[16];
+    cv_oy = 0;
+    cv_text(TB3_X0, 4, &AF_S, DB_STYLE_NAMES[g->style % DB_NSTYLE], T_MID);
+    if (g->seed) {
+        str_cpy(b, "SEED ", sizeof b);
+        for (i = 0; i < 4u; i++)
+            b[5u + i] = HEX[(g->seed >> (12u - 4u * i)) & 15u];
+        b[9] = 0;
+        cv_text_r(TB3_X0 + TB3_W, 4, &AF_S, b, T_MID, T_SURF);
+    }
+    for (i = 0; i <= len; i += 4u)                    /* the beats */
+        cv_rect(TB3_X0 + (int32_t)(i * TB3_W / len), TB3_Y0 - 2, 1, TB3_H + 4, i % 16u ? T_GRID : T_RAISE);
+    for (l = 0; l < NLANE; l++)
+        for (i = 0; i < len; i++) {
+            const step_t *st = &t->step[i];
+            uint32_t bit = 1u << l;
+            int32_t x = TB3_X0 + (int32_t)(i * TB3_W / len), w = TB3_X0 + (int32_t)((i + 1u) * TB3_W / len) - x;
+            if (step_lanes(st) & bit)
+                cv_rect(x + 1, TB3_Y0 + (int32_t)l * DB_ROW + 1, w > 2 ? w - 1 : 1, DB_ROW - 2,
+                        (step_accents(st) & bit) ? T_TEXT : c);
+        }
+    if (song.playing && t->seq_idx < len)             /* the step playing */
+        cv_rect(TB3_X0 + (int32_t)(t->seq_idx * TB3_W / len), TB3_Y0 - 2, 1, TB3_H + 4, T_ACCENT);
+}
+
 /* SEQ > STEP on a DRUM track: the grid, 8 lanes x the 16 steps of the page shown. Lanes by their two-letter
  * names (BD SD CP CH OH TM RS CB; CG CL CY on the other kits). A hit is a rounded square (accented: the
  * accent; a RATCH step's: its 2..4 parts as bars), an empty step a dot (brighter on the beats and on the selected lane); the selected lane is
@@ -1295,6 +1328,10 @@ static uint32_t graph_signature(void)
         const tb3_cfg_t *g = &tb3_cfg[trk_index(t)];
         h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u + g->seed * 2654435761u + tb3_auto_n * 7919u;
         h = (h ^ (g->root + 12u * g->scale + 97u * g->a_scale + 1009u * g->mode)) * 16777619u;
+    }
+    if (pg->graph == GR_DB1 || pg->graph == GR_DB2) {   /* DrumBrain: the pattern, its style and seed, the step playing */
+        const db_cfg_t *g = &db_cfg[trk_index(t)];
+        h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u + g->seed * 2654435761u + g->style * 1009u;
     }
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
@@ -2428,6 +2465,10 @@ static void draw_graph(void)
         case GR_TB3SCL:
         case GR_TB3MOD:
             graph_tb3(t, c);                         /* (ARP on a 303 track: TB-3PO's line) */
+            break;
+        case GR_DB1:
+        case GR_DB2:
+            graph_dbrain(t, c);                      /* (ARP on a DRUM track: DrumBrain's pattern) */
             break;
         default:
             if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_WHEEL) graph_wheel(t, c);

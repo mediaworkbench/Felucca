@@ -227,6 +227,7 @@ static int rec_on(const track_t *t) { return ((song.rec >> trk_index(t)) & 1u) &
 
 #include "motion.c"
 #include "tb3po.c"               /* TB-3PO: the 303 engine's line generator (its ARP), auto MUTATE in seq_enter */
+#include "dbrain.c"              /* DrumBrain: a DRUM track's pattern generator (its ARP's BRAIN pages) */
 
 /* the ARP's modes (P_AMODE). Append-only: a stored value keeps its meaning. ORD (1.2, it played as UP before) plays
  * the held notes in the order they were pressed, whatever ARP 2's ORD switch says (that switch orders the list of the

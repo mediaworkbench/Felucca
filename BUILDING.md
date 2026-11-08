@@ -85,6 +85,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_ICONS` | 1 | parameter icons on the knob cards |
 | `FELUCCA_303` | 1 | the 303 engine (X0X's Open303, `firmware/src/eng_303.c`, `x0x/`) and TB-3PO, its ARP (`0`: engine 15 reserved, no float code) |
 | `FELUCCA_AICD` | 1 | TB-3PO's MODE AICD: Aicd's acid line model (`assets/aicd/lm.js`, ~24 KB of flash as `build/gen/felucca_aicd.h` by `tools/gen_aicd.py`); `0`: no MODEL page, TB-3PO's own lines only |
+| `FELUCCA_DBRAIN` | 1 | a DRUM track's BRAIN pages: DrumBrain's pattern model (`assets/drumbrain/model.js`, ~19 KB of flash as `build/gen/felucca_dbrain.h` by `tools/gen_dbrain.py`); `0`: no such pages |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion (a test build: the DCO and 303 engines are left out, the EDIT layer has room for 15) |
 | `FELUCCA_ADPCM` | 0 | upstream's ADPCM engine (`firmware/src/eng_adpcm.c`, upstream's engine 14): kept in the tree, not available in this fork (14 is DCO, 15 the 303); `1` stops the build |
 

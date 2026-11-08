@@ -197,6 +197,7 @@ static void ui_power_on(void)
     memset(proj_slot, 0, sizeof proj_slot);
     memset(up_bank, 0, sizeof up_bank);
     tb3_reset();                                  /* (TB-3PO: X0X's defaults, as main.c felucca_init) */
+    db_reset();                                   /* (DrumBrain's defaults, as main.c felucca_init) */
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
     undo_depth++;

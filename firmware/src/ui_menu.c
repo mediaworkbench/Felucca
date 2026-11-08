@@ -89,6 +89,10 @@ static const menu_credit_t MENU_CREDITS[] = {
     {"Michael Ganss / MIT", MC_TEXT},
     {"https://github.com/mganss/Aicd", MC_URL},
     {"", MC_TEXT},
+    {"DRUMBRAIN", MC_TITLE},                      /* a DRUM track's BRAIN pages: its model as it is (dbrain.c, assets/drumbrain/) */
+    {"Michael Ganss / MIT", MC_TEXT},
+    {"https://github.com/mganss/DrumBrain", MC_URL},
+    {"", MC_TEXT},
     {"INTER TIGHT", MC_TITLE},
     {"The Inter Project Authors", MC_TEXT},
     {"SIL Open Font License 1.1", MC_TEXT},

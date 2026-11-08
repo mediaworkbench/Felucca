@@ -867,6 +867,8 @@ static void draw_foot(void)
         sig += 0x51EDu + (uint32_t)black_held(GK_ACC) * 977u;
     if (tb3_on())                                      /* TB-3PO's hint: NEW LINE's star, refused in a song */
         sig += 0x7B3Fu + tb3_rt[song.sel % NTRK].stale * 977u + (uint32_t)chain_busy() * 31u;
+    if (db_on())                                       /* DrumBrain's: NEW's star, refused in a song */
+        sig += 0x3D1Bu + db_stale[song.sel % NTRK] * 977u + (uint32_t)chain_busy() * 31u;
     help = ui.help_t && !ui.ml.on ? help_page() : 0;   /* 1.5, HELP ON: the page's hint for ~2 s after it was entered
                                                        * (not while MIDI LEARN shows its line) */
     if (help)
@@ -885,6 +887,11 @@ static void draw_foot(void)
         khint_t kh[2];                                /* no longer match the line */
         kh[0] = (khint_t){KC_OCTUP, tb3_rt[song.sel % NTRK].stale ? "NEW LINE *" : "NEW LINE"};
         kh[1] = (khint_t){KC_OCTDN, "MUTATE"};
+        cv_key_row(8, 232, 2, kh, 2, chain_busy() ? 0u : 3u, T_BG);
+    } else if (db_on()) {                             /* row 1: DrumBrain's OCT+ / OCT- (ui_dbrain.c) */
+        khint_t kh[2];
+        kh[0] = (khint_t){KC_OCTUP, db_stale[song.sel % NTRK] ? "NEW *" : "NEW"};
+        kh[1] = (khint_t){KC_OCTDN, "VARY"};
         cv_key_row(8, 232, 2, kh, 2, chain_busy() ? 0u : 3u, T_BG);
     } else if (act_cols()) {                          /* row 1: the OCT+ / OCT- hint in place of the steps */
         char ha[16], hb[16];

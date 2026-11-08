@@ -64,6 +64,7 @@ static void felucca_init(void)
     undo_depth++;                             /* (no undo copy of the power-on loads) */
     fm6_init();                               /* every track's FM6 patch: the init voice */
     tb3_reset();                              /* every track's TB-3PO: X0X's defaults (tb3po.c) */
+    db_reset();                               /* every track's DrumBrain settings (dbrain.c) */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         track_defaults(t);

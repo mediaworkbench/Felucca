@@ -47,6 +47,15 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
   turn random steps on or off, only into steps the model has; 0 and 100 % are exact. OCT- draws a run of a quarter of the line
   (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
 
+- **DrumBrain, a pattern generator for DRUM tracks.** On a DRUM track ARP goes on, after ARP and ARP 2, to two pages with
+  the model of [DrumBrain](https://github.com/mganss/DrumBrain) (Michael Ganss, MIT), trained on about 250 808 / 909
+  patterns. BRAIN: STYLE (ALL, HOUSE, BREAKS), TEMP (below 100 % the likelier steps, above it the rarer ones), DENS (100 %
+  is the model's own; lower thins each lane, the weakest hits first) and CTX (context: how far back it looks; lower is more
+  random). BRAIN 2: LANES, the lanes it writes (BEAT is kick, snare and both hats; the others stay as they are, so HATS
+  re-rolls only the hats), and BARS, the 1 or 2 bars it generates and repeats to LEN. OCT+ makes a new pattern, OCT- a
+  variation that keeps the first half. The knobs are for the next one (NEW gets a star). The steps stay normal, editable
+  steps and the track's automation stays; SAVE held undoes.
+
 - **Fewer engines, more room.** SAMPLE (4), SLICE (13), LOFI (3) and VOICE (5) and the built-in sample sets (PIANO,
   FLUTE, SAX, SLICE's BREAK) are left out of the build by default (`FELUCCA_SAMPLE`, `FELUCCA_SLICE`, `FELUCCA_LOFI`,
   `FELUCCA_VOICE` = 0; `=1` brings each back): about 143 KB of flash for new engines and sounds. Their numbers stay

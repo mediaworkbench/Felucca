@@ -65,6 +65,11 @@
                                   * felucca_aicd.h, tools/gen_aicd.py); 0: TB-3PO's own lines only */
 #endif
 #define AICD_ON (FELUCCA_AICD && T303_ON)
+#ifndef FELUCCA_DBRAIN
+#define FELUCCA_DBRAIN 1         /* a DRUM track's BRAIN pages (dbrain.c): DrumBrain's pattern model, ~19 KB of flash (build/gen
+                                  * felucca_dbrain.h, tools/gen_dbrain.py); 0: no such pages */
+#endif
+#define DBRAIN_ON FELUCCA_DBRAIN
 /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order of engines.c ENGINE_ORDER. DCO
  * (14) and 303 (15) not with FELUCCA_FM4 (a test build of the retired DIGITAL: the EDIT layer's keys hold 15 engines at
  * most, ui_layer.c) */
