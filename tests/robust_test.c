@@ -58,24 +58,26 @@ static int projects(void)
     reset();
     project_capture(&p);
     bad += check("a captured project packs and imports", proj_pack(&st, &p) && proj_import(&q, &st, PROJ_STORE_SIZE));
-    {   /* after 1.6.1: a DCO track (engine 14) with RANGE 4', CHORUS TYPE I+II: stored and restored; out of their
-         * ranges (crafted): clamped */
+    {   /* after 1.6.1: a DCO track (engine 14) with RANGE 4' and its VCA a GATE (P_DRNG 5, eng_dco.c), CHORUS TYPE
+         * I+II: stored and restored; out of their ranges (crafted): clamped */
         static project_t d;
         static project_store_t ds;
         host_preset(&trk[1], ENGI_DCO, 13);
-        trk[1].p[P_DRNG] = 2;
+        trk[1].p[P_DRNG] = 8;
+        trk[1].p[P_FM1_ATK] = 11; trk[1].p[P_FM1_DEC] = 22; trk[1].p[P_FM1_SUS] = 33; trk[1].p[P_FM1_REL] = 44;
         song.g[G_CTYPE] = 3;
         project_capture(&d);
         reset();
-        bad += check("a DCO track (RANGE 4') and CHORUS TYPE I+II: FUN10 round trip",
+        bad += check("a DCO track (RANGE 4' ADSR, the VCA's four values) and CHORUS TYPE I+II: FUN10 round trip",
                      proj_pack(&ds, &d) && proj_import(&q, &ds, PROJ_STORE_SIZE) && !project_restore_runtime(&q) &&
-                     trk[1].eng_req == ENGI_DCO && trk[1].preset == 13u && trk[1].p[P_DRNG] == 2 && song.g[G_CTYPE] == 3);
+                     trk[1].eng_req == ENGI_DCO && trk[1].preset == 13u && trk[1].p[P_DRNG] == 8 && song.g[G_CTYPE] == 3 &&
+                     trk[1].p[P_FM1_ATK] == 11 && trk[1].p[P_FM1_DEC] == 22 && trk[1].p[P_FM1_SUS] == 33 && trk[1].p[P_FM1_REL] == 44);
         d.g[G_CTYPE] = 9;
         d.t[1].p[P_DRNG] = 50;
         d.sum = proj_sum(&d);
         reset();
-        bad += check("  CHORUS TYPE 9 and RANGE 50 restore inside their ranges (I+II, 4')",
-                     !project_restore_runtime(&d) && song.g[G_CTYPE] == 3 && trk[1].p[P_DRNG] == 2);
+        bad += check("  CHORUS TYPE 9 and RANGE 50 restore inside their ranges (I+II, 4' ADSR)",
+                     !project_restore_runtime(&d) && song.g[G_CTYPE] == 3 && trk[1].p[P_DRNG] == 8);
         reset();
     }
     pos = 68u + st.raw[66];                                 /* track 1's engine byte (after its parameters) */

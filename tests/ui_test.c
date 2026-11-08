@@ -10071,6 +10071,57 @@ static int test_ux18(void)
     return bad;
 }
 
+/* DCO's P_DRNG (RANGE + 3 x GATE, eng_dco.c): RANGE's KNOB 1 turns 16 8 4 and the VCA page's (ENV's third, DCO only)
+ * ENV GATE, each keeping the other half (params.c dco_desc / dco_knob) */
+static int test_dco_vca(void)
+{
+    int bad = 0, ok;
+    if (!eng_ok(ENGI_DCO)) {                              /* (a FELUCCA_FM4=1 build: no DCO) */
+        printf("ui: DCO: RANGE / VCA (no DCO in this build)                                     skip\n");
+        return 0;
+    }
+    ui_power_on();
+    set_engine(ENGI_DCO);
+    TSEL->p[P_DRNG] = 1;                                  /* 8' ENV */
+    go_title("RANGE");
+    turn(EN_K1, 1); ok = TSEL->p[P_DRNG] == 2;            /* 4' ENV */
+    go_title("VCA");
+    turn(EN_K1, 1); ok &= TSEL->p[P_DRNG] == 5;           /* 4' GATE */
+    turn(EN_K1, 1); ok &= TSEL->p[P_DRNG] == 8;           /* 4' ADSR */
+    turn(EN_K1, 1); ok &= TSEL->p[P_DRNG] == 8;           /* (ADSR is the end) */
+    turn(EN_K1, -1); ok &= TSEL->p[P_DRNG] == 5;          /* 4' GATE again */
+    go_title("RANGE");
+    turn(EN_K1, -2); ok &= TSEL->p[P_DRNG] == 3;          /* 16' GATE */
+    go_title("VCA");
+    turn(EN_K1, -1); ok &= TSEL->p[P_DRNG] == 0;          /* 16' ENV */
+    bad += check("DCO: RANGE's KNOB 1 16 8 4 and VCA's ENV GATE ADSR, each its half of RANGE (P_DRNG)", ok);
+    go_title("ENV DEST");
+    press(B_ENV); ok = str_eq(cur_page()->title, "VCA");
+    press(B_ENV); ok &= str_eq(cur_page()->title, "ENV");
+    set_engine(0u);                                       /* ANALOG: no VCA page */
+    go_title("ENV DEST");
+    press(B_ENV); ok &= str_eq(cur_page()->title, "ENV");
+    bad += check("DCO: ENV steps ENV, ENV DEST, VCA; on another engine ENV, ENV DEST", ok);
+    set_engine(ENGI_DCO);
+    TSEL->p[P_DRNG] = 7;                                  /* 8' ADSR: VCA ENV shows */
+    go_title("VCA");
+    press(B_ENV); ok = str_eq(cur_page()->title, "VCA ENV");
+    turn(EN_K1, 3); ok &= TSEL->p[P_FM1_ATK] == 3;        /* its knobs: the VCA's own four */
+    turn(EN_K4, 2); ok &= TSEL->p[P_FM1_REL] == 2;
+    ok &= TSEL->p[P_ATK] != 3 || TSEL->p[P_REL] != 2;
+    ok &= ev_id_ok(TSEL, P_FM1_ATK) && ev_id_ok(TSEL, P_FM1_REL) && !ev_id_ok(TSEL, P_FM1_LEVEL) && !ev_id_ok(TSEL, P_FM2_ATK);
+    press(B_ENV); ok &= str_eq(cur_page()->title, "ENV");
+    bad += check("DCO: VCA on ADSR shows VCA ENV after VCA, its knobs the VCA's own (motion rows too)", ok);
+    TSEL->p[P_DRNG] = 4;                                  /* 8' GATE: no VCA ENV, not on the way either */
+    go_title("VCA");
+    press(B_ENV); ok = str_eq(cur_page()->title, "ENV");
+    set_engine(0u);
+    ok &= !ev_id_ok(TSEL, P_FM1_ATK);
+    bad += check("DCO: VCA on ENV or GATE skips VCA ENV; another engine has no such rows", ok);
+    ui_power_on();
+    return bad;
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -10159,6 +10210,7 @@ int main(void)
     bad += test_fx_map_columns();
     bad += test_help();
     bad += test_no_flash();
+    bad += test_dco_vca();
     bad += test_ux18();
 #if FELUCCA_FM4
     bad += test_fm_charts();                        /* (DIGITAL's charts: built with FELUCCA_FM4=1 only) */

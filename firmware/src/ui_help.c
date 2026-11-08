@@ -16,6 +16,8 @@ static const char H_FMOP[] = "[K1]OPERATOR[SAVE]HOLD: UNDO";
 static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"ENV", "[K1-4]A D S R[ENV]ENV DEST"},
     {"ENV DEST", "[K1-4]ENV AMOUNTS[ENV]ENV"},
+    {"VCA", "[K1]ENV GATE ADSR[ENV]NEXT"},
+    {"VCA ENV", "[K1-4]A D S R[ENV]ENV"},
     {"LFO", "[K1-4]SHAPE[LFO]HOLD: MOMENTARY"},
     {"LFO 2", "[K1]SYNC TO BPM[LFO]LFO DEST"},
     {"LFO DEST", "[K1-4]LFO AMOUNTS[LFO]MOD"},

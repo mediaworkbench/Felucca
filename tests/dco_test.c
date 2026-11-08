@@ -12,6 +12,10 @@
  * 6. KEY: with KEY 127 the spectral centroid follows the key (an octave up: x 1.5 at least), with KEY 0 less so.
  * 7. a retrigger of a sounding voice does not click: no step in a closed-filter tone beyond 1.5 x its own slope.
  * 8. voices: at most DCO_POLY (4) of 8 held notes sound (the engine's cap); UNISON's voices start at different phases.
+ * 8b. VCA GATE (RANGE 3..5): the level holds at SUS 0 while the filter closes, no click at the gate, the voice free
+ *    at once after the release, the pitch of its RANGE.
+ * 8c. VCA ADSR (RANGE 6..8): the VCA's own envelope against ENV, the voice kept by a longer release and then ended, no
+ *    click at its edges, a retrigger or a switch under a held note, a voice given up ends, the pitch of its RANGE.
  * 9. determinism: the same state (the tracks, the noise seeds) renders the same samples again (every preset).
  * 10. cost: host instructions per sample per voice (6 notes held, the idle mix taken off) for every preset and the
  *     heaviest corner; fails above DCO_COST_MAX (device estimate 1.7 % per 100, as drum_test's).
@@ -351,6 +355,237 @@ static void retrigger(void)
     check(what, at <= steady * 3 / 2 + 8);
 }
 
+/* steps of the part's sum over n samples: the largest in *d, the voices left active returned */
+static uint32_t run_steps(int32_t *prev, uint32_t n, int32_t *d)
+{
+    static int32_t b[CTL];
+    uint32_t i, j, act = 0;
+    *d = 0;
+    for (i = 0; i < n; i += CTL) {
+        track_render(&trk[0], b, CTL);
+        for (j = 0; j < CTL; j++) {
+            int32_t s = abs(b[j] - *prev);
+            *prev = b[j];
+            *d = s > *d ? s : *d;
+        }
+    }
+    for (j = 0; j < NVOICE; j++)
+        act += trk[0].v[j].active != 0;
+    return act;
+}
+static void vca_set(int a, int d, int s, int r)
+{
+    trk[0].p[P_FM1_ATK] = (int16_t)a;
+    trk[0].p[P_FM1_DEC] = (int16_t)d;
+    trk[0].p[P_FM1_SUS] = (int16_t)s;
+    trk[0].p[P_FM1_REL] = (int16_t)r;
+}
+static double render_rms(double *y, uint32_t n)
+{
+    static int32_t b[CTL];
+    uint32_t i, j;
+    for (i = 0; i < n; i += CTL) {
+        track_render(&trk[0], b, CTL);
+        for (j = 0; j < CTL; j++)
+            y[i + j] = b[j] / 32768.0;
+    }
+    return rms(y, n, 0);
+}
+
+/* VCA ADSR (RANGE 6..8, eng_dco.c dco_vca), the VCA's own envelope: its decay shapes the level with ENV held open; ENV
+ * at SUS 0 moves the filter only; at its default values (A 0 D 0 S 100 % R 0) as GATE; a release longer than ENV's keeps
+ * the voice and then ends it; no click where it opens, shuts, retriggers or takes over a held note; a voice given up
+ * ends; 4'A plays the pitch of 4' */
+static void vca_adsr(void)
+{
+    int16_t e[8] = {2, 0, 0, 0, 90, 0, 0, 1};
+    char what[200];
+    double a, b_, g, f;
+    int32_t prev, d, near_, on, off;
+    uint32_t act, k;
+
+    setup(e, 7);                                         /* 8'A: VCA decays to 0, ENV held at full */
+    vca_set(0, 70, 0, 0);
+    trk_note_on(&trk[0], 45, 100);
+    a = render_rms(Y, FS / 20u);
+    render_rms(Y, FS);
+    b_ = render_rms(Y, FS / 10u);
+    snprintf(what, sizeof what, "VCA ADSR: its own decay shapes the level, ENV's SUS 100 %% (RMS at once %.4f, at 1 s %.5f)", a, b_);
+    check(what, a > 0.02 && b_ < 0.05 * a);
+
+    setup(e, 7);                                         /* VCA full, ENV SUS 0: the level holds as GATE's */
+    vca_set(0, 0, 127, 0);
+    trk[0].p[P_DEC] = 70; trk[0].p[P_SUS] = 0; trk[0].p[P_ED_FLT] = 63;
+    trk_note_on(&trk[0], 45, 100);
+    render_rms(Y, FS / 20u);
+    a = render_rms(Y, FS / 4u);
+    setup(e, 4);                                         /* 8'G, the same */
+    trk[0].p[P_DEC] = 70; trk[0].p[P_SUS] = 0; trk[0].p[P_ED_FLT] = 63;
+    trk_note_on(&trk[0], 45, 100);
+    render_rms(Y, FS / 20u);
+    g = render_rms(Y, FS / 4u);
+    snprintf(what, sizeof what, "VCA ADSR: at its default values the level of GATE (RMS %.4f, GATE %.4f)", a, g);
+    check(what, a > 0.8 * g && a < 1.25 * g);
+
+    setup(e, 7);                                         /* a long release on a short ENV: the voice stays, then ends */
+    vca_set(0, 0, 127, 100);
+    trk[0].p[P_REL] = 0;
+    trk_note_on(&trk[0], 45, 100);
+    render_rms(Y, FS / 10u);
+    a = render_rms(Y, FS / 10u);
+    trk_note_off(&trk[0], 45);
+    b_ = render_rms(Y, FS / 5u);
+    b_ = render_rms(Y, FS / 20u);
+    act = 0;
+    for (k = 0; k < NVOICE; k++)
+        act += trk[0].v[k].active != 0;
+    snprintf(what, sizeof what, "VCA ADSR: a release longer than ENV's keeps the voice (RMS held %.4f, 250 ms after %.4f, %u active)", a, b_, act);
+    check(what, b_ > 0.02 * a && act == 1u);
+    for (k = 0; k < 40u * FS / CTL && act; k++) {
+        static int32_t b[CTL];
+        uint32_t j;
+        track_render(&trk[0], b, CTL);
+        act = 0;
+        for (j = 0; j < NVOICE; j++)
+            act += trk[0].v[j].active != 0;
+    }
+    snprintf(what, sizeof what, "VCA ADSR: and ends it (free after %u blocks more)", k);
+    check(what, !act);
+
+    setup(e, 7);                                         /* R 0, A 0: no click at the gate */
+    vca_set(0, 0, 127, 0);
+    trk_note_on(&trk[0], 45, 100);
+    prev = 0;
+    run_steps(&prev, 2u * CTL, &on);
+    run_steps(&prev, FS / 4u, &near_);
+    trk_note_off(&trk[0], 45);
+    act = run_steps(&prev, 8u * CTL, &off);
+    snprintf(what, sizeof what, "VCA ADSR: no click at A 0 / R 0 (step %d opening, %d shutting; %d near), %u active after 8 blocks", on, off, near_, act);
+    check(what, on <= near_ * 3 / 2 + 8 && off <= near_ * 3 / 2 + 8 && !act);
+
+    setup(e, 7);                                         /* a retrigger in the release: from where it is */
+    vca_set(0, 0, 127, 100);
+    trk_note_on(&trk[0], 45, 100);
+    prev = 0;
+    run_steps(&prev, FS / 10u, &near_);
+    trk_note_off(&trk[0], 45);
+    run_steps(&prev, FS / 10u, &d);
+    trk_note_on(&trk[0], 45, 100);
+    run_steps(&prev, 2u * CTL, &on);
+    snprintf(what, sizeof what, "VCA ADSR: a retrigger in its release, no click (step %d; %d near)", on, near_);
+    check(what, on <= near_ * 3 / 2 + 8);
+
+    setup(e, 1);                                         /* switched from ENV to ADSR under a held note: no jump */
+    trk[0].p[P_SUS] = 64;
+    vca_set(0, 0, 127, 0);
+    trk_note_on(&trk[0], 45, 100);
+    prev = 0;
+    run_steps(&prev, FS / 2u, &near_);
+    trk[0].p[P_DRNG] = 7;
+    run_steps(&prev, 2u * CTL, &on);
+    snprintf(what, sizeof what, "VCA ADSR: switched to under a held note, no jump (step %d; %d near)", on, near_);
+    check(what, on <= near_ * 3 / 2 + 8);
+
+    setup(e, 7);                                         /* a voice given up for another part ends */
+    vca_set(0, 0, 127, 100);
+    trk_note_on(&trk[0], 45, 100);
+    prev = 0;
+    run_steps(&prev, FS / 10u, &near_);
+    for (k = 0; k < NVOICE; k++)
+        if (trk[0].v[k].active)
+            voice_kill(&trk[0].v[k]);
+    act = run_steps(&prev, 2u * CTL, &d);
+    check("VCA ADSR: a voice given up for another part ends at once", !act);
+
+    {
+        int16_t s[8] = {2, 0, 0, 0, 127, 0, 0, 1};
+        setup(s, 8);
+        vca_set(0, 0, 127, 0);
+        voice_render(69, Y, 2 * FS);
+        f = crossing_hz(Y, 2 * FS);
+        snprintf(what, sizeof what, "VCA ADSR: 4'A plays 880 Hz as 4' does: %.2f Hz", f);
+        check(what, fabs(f / 880.0 - 1) <= 0.005);
+    }
+}
+
+/* VCA GATE (RANGE 3..5, eng_dco.c dco_amp): with SUS 0 and ENV -> FLT up, ENV (RANGE 8') dies away while GATE (8'G)
+ * holds its level while the key is down; the filter still closes (the ADSR stays on it: voice.c m.envq15); no click
+ * where the gate opens or shuts (no step beyond 1.5 x the sound's own nearby); the voice free 2 blocks after the
+ * release at most; 4'G plays the pitch of 4' */
+static void gate(void)
+{
+    static int32_t b[CTL];
+    static double ps[NFFT / 2];
+    int16_t e[8] = {2, 0, 0, 0, 40, 0, 0, 1};
+    double r_env = 0, r_on, r_late, c_early, c_late, f;
+    int32_t prev = 0, early = 0, late = 0, on = 0, off = 0;
+    uint32_t i, j, k, n = FS + FS / 4u, mode, blocks = 0;
+    char what[200];
+    for (mode = 0; mode < 2u; mode++) {                 /* 0 ENV (8'), 1 GATE (8'G) */
+        setup(e, mode ? 4 : 1);
+        trk[0].p[P_DEC] = 70;
+        trk[0].p[P_SUS] = 0;
+        trk[0].p[P_REL] = 60;
+        trk[0].p[P_ED_FLT] = 63;
+        trk_note_on(&trk[0], 45, 100);
+        prev = 0;
+        for (i = 0; i < n; i += CTL) {
+            track_render(&trk[0], b, CTL);
+            for (j = 0; j < CTL; j++) {
+                int32_t d = abs(b[j] - prev);
+                prev = b[j];
+                Y[i + j] = b[j] / 32768.0;
+                if (i < 2u * CTL)
+                    on = d > on ? d : on;
+                else if (i < 32u * CTL)
+                    early = d > early ? d : early;
+                else if (i >= n - FS / 4u)
+                    late = d > late ? d : late;
+            }
+        }
+        if (!mode) {
+            r_env = rms(Y + FS, FS / 10u, 0);
+            on = early = late = 0;
+        }
+    }
+    r_on = rms(Y + FS / 50u, FS / 20u, 0);
+    r_late = rms(Y + FS, FS / 10u, 0);
+    snprintf(what, sizeof what, "GATE: SUS 0 holds the level (RMS at 1 s %.4f, at 50 ms %.4f; ENV's at 1 s %.5f)", r_late,
+             r_on, r_env);
+    check(what, r_late > 0.2 * r_on && r_late > 10 * r_env);
+    spectrum(Y, ps);                                     /* the harmonics against the fundamental (110 Hz) */
+    c_early = band_db(ps, 300, 5000) - band_db(ps, 80, 150);
+    spectrum(Y + FS, ps);
+    c_late = band_db(ps, 300, 5000) - band_db(ps, 80, 150);
+    snprintf(what, sizeof what, "GATE: the ADSR still closes the filter (0.3..5 kHz against 110 Hz: %.1f dB at once, "
+             "%.1f dB at 1 s)", c_early, c_late);
+    check(what, c_late < c_early - 10);
+    trk_note_off(&trk[0], 45);
+    for (k = 0; k < 8u; k++) {
+        uint32_t act = 0;
+        track_render(&trk[0], b, CTL);
+        for (j = 0; j < CTL; j++) {
+            int32_t d = abs(b[j] - prev);
+            prev = b[j];
+            off = d > off ? d : off;
+        }
+        for (j = 0; j < NVOICE; j++)
+            act += trk[0].v[j].active != 0;
+        blocks += act != 0;
+    }
+    snprintf(what, sizeof what, "GATE: no click (step %d at the gate's opening, %d at its shutting; %d, %d near), voice free "
+             "after %u block(s)", on, off, early, late, blocks);
+    check(what, on <= early * 3 / 2 + 8 && off <= late * 3 / 2 + 8 && blocks <= 2u);
+    {
+        int16_t s[8] = {2, 0, 0, 0, 127, 0, 0, 1};
+        setup(s, 5);
+        voice_render(69, Y, 2 * FS);
+        f = crossing_hz(Y, 2 * FS);
+        snprintf(what, sizeof what, "GATE: 4'G plays 880 Hz as 4' does: %.2f Hz", f);
+        check(what, fabs(f / 880.0 - 1) <= 0.005);
+    }
+}
+
 static void voices(void)
 {
     static int32_t b[CTL];
@@ -527,6 +762,8 @@ int main(int argc, char **argv)
     hpf();
     keytrack();
     retrigger();
+    gate();
+    vca_adsr();
     voices();
     determinism();
     cost();

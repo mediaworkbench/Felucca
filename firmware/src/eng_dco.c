@@ -11,6 +11,18 @@
  *   P_ED_FX was, which no engine read; the presets set it (dco_track_loaded), any other sound load puts it back to 8'.
  * The envelope, the VCA and the LFO are the track's (voice.c), so ATK .. REL, the velocity and the LFO pages work as
  *   everywhere; the presets' Juno values are converted to them (tools/fm106_presets.py).
+ * VCA GATE (the Juno's VCA switch, on the device ENV's third page VCA; RANGE's KNOB 1 turns 16 8 4 only: params.c
+ *   dco_desc; the editor sees RANGE's six values): RANGE 3..5 (16'G 8'G 4'G) is 16' 8' 4' with the VCA a gate: full while
+ *   the key is held (the pedal holds it too), shut on its release within a block (the block's ramp, ~0.7 ms: fm-106's
+ *   VCA slew is 0.69 ms), the voice then free; the ADSR still moves the filter (voice.c keeps it for ENV -> FLT / PIT /
+ *   SHP: m.envq15). RANGE 0..2 (ENV) is the ADSR on the VCA, as before (dco_amp returns it as it is). In P_DRNG
+ *   because it has no room elsewhere: the eight engine values are taken, a project (FUN10) has no spare bytes left for
+ *   a new common parameter.
+ * VCA ADSR (the switch's third position, RANGE 6..8, 16'A 8'A 4'A; beyond a Juno): the VCA has its own envelope, the
+ *   page VCA ENV (shown with ADSR on), and ENV only moves the filter (and PIT, SHP). Its four values are P_FM1_ATK ..
+ *   P_FM1_REL, DIGITAL's first operator's, inert without FELUCCA_FM4 and stored everywhere (projects, user presets,
+ *   backups): no format changed. A preset puts them back to A 0 D 0 S 100 % R 0, which is GATE's shape. Not ENV SYNC's:
+ *   always ms. It ends the voice: a release longer than ENV's keeps it (voice.c env_tick, dco_vca_holds).
  * Voice state (no engine memory): ph[0] the DCO's phase (the host keeps it on a retrigger and spreads it for UNISON),
  *   ph[1] the sub's flip-flop, ph[2] the HPF's second state; s[0..3] the VCF's stages (Q24), s[4] the HPF's first
  *   state, s[5] the DCO's coupling capacitor, s[6] the output's, s[7] the noise's low-pass. A retrigger keeps them all
@@ -37,8 +49,27 @@ static int32_t dco_nz = 0x3C6EF372;                     /* noise, one xorshift f
 static const char *const N_DCO_WAVE[] = {"OFF", "PLS", "SAW", "P+S"};
 static const char *const N_DCO_HPF[] = {"BOOST", "FLAT", "236", "754"};
 
+/* the VCA ADSR (RANGE 6..8): level (Q24) and stage (0 not running, 1 attack, 2 decay / sustain, 3 release) of each
+ * voice; a voice's engine state s[] and ph[] are full */
+static int32_t dco_vl[NTRK][NVOICE];
+static uint8_t dco_vst[NTRK][NVOICE];
+
+/* env_tick, ENV's release at its end: the voice is the VCA ADSR's to end */
+static int dco_vca_holds(const track_t *t)
+{
+    return t->engine == ENGI_DCO && t->p[P_DRNG] >= 6;
+}
+
 static void dco_note_on(track_t *t, voice_t *v)
 {
+    uint32_t tr = (uint32_t)(t - trk), vi = (uint32_t)(v - t->v);
+    if (t->p[P_DRNG] < 6)
+        dco_vst[tr][vi] = 0;
+    else if (!v->env_out) {                             /* from silence */
+        dco_vl[tr][vi] = 0;
+        dco_vst[tr][vi] = 1;
+    } else if (dco_vst[tr][vi])                         /* a retrigger: the attack from where it is */
+        dco_vst[tr][vi] = 1;
     if (!v->env && !v->env_out) {                       /* a fresh voice (not a retrigger): from rest */
         uint32_t i;
         v->ph[0] = v->ph[1] = v->ph[2] = 0;
@@ -56,7 +87,7 @@ static void dco_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     uint32_t inc = m->inc, ph = v->ph[0], sub = v->ph[1] & 1u, i, epw;
     uint32_t wave = (uint32_t)clamp(p[P_E0], 0, 3), hpf = (uint32_t)clamp(p[P_E7], 0, 3);
     int32_t z[4], s1 = v->s[4], s2 = (int32_t)v->ph[2], dco = v->s[5], dcv = v->s[6], nlp = v->s[7], nst = DCO_NZ(t);
-    int32_t pw, pdc, subg, noig, key, dac, e, inj = 0, rg = clamp(p[P_DRNG], 0, 2);
+    int32_t pw, pdc, subg, noig, key, dac, e, inj = 0, rg = clamp(p[P_DRNG], 0, 8) % 3;   /* (3..8: the VCA's, dco_amp) */
     dco_vcf_t c;
     if (rg == 0)                                         /* RANGE 16' */
         inc >>= 1;
@@ -118,6 +149,55 @@ static void dco_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     DCO_NZ(t) = nst;
 }
 
+/* one block of the VCA ADSR (env_tick's curves, always in ms); stage 0 (switched to ADSR under a held note): it takes
+ * over from ENV's level. At its release's end the voice ends as with GATE */
+static int32_t dco_vca(track_t *t, voice_t *v, int32_t adsr)
+{
+    const int16_t *p = t->p;
+    uint32_t tr = (uint32_t)(t - trk), vi = (uint32_t)(v - t->v);
+    int32_t e = dco_vl[tr][vi], st = dco_vst[tr][vi];
+    if (!v->active)                                     /* given up for another part (voice_kill): this block fades it */
+        return 0;
+    if (!st) {
+        e = adsr << 9;
+        st = 1;
+    }
+    if (!v->gate)
+        st = 3;
+    if (st == 1) {
+        e += (int32_t)ENV_LIN[p[P_FM1_ATK] & 127];
+        if (e >= (1 << 24)) {
+            e = 1 << 24;
+            st = 2;
+        }
+    } else if (st == 2)
+        e += mulq16(((int32_t)p[P_FM1_SUS] << 17) - e, ENV_EXP[p[P_FM1_DEC] & 127]);
+    else {
+        e -= mulq16(e, ENV_EXP[p[P_FM1_REL] & 127]);
+        if (e < (1 << 12)) {
+            e = st = 0;
+            v->stage = 4;
+        }
+    }
+    dco_vl[tr][vi] = e;
+    dco_vst[tr][vi] = (uint8_t)st;
+    return e >> 9;
+}
+
+/* the VCA: the ADSR (RANGE 0..2); GATE (3..5): full while the key is held; at its release 0, and the voice ends
+ * (stage 4: voice.c ramps the block to 0, env_tick frees it, its budget given back at once); its own ADSR (6..8) */
+static int32_t dco_amp(track_t *t, voice_t *v, int32_t adsr)
+{
+    if (t->p[P_DRNG] < 3)
+        return adsr;
+    if (t->p[P_DRNG] >= 6)
+        return dco_vca(t, v, adsr);
+    if (v->gate)
+        return 32767;
+    v->stage = 4;
+    return 0;
+}
+
 #include "dco_presets.h"         /* DCO_PRESETS, DCO_PX (tools/fm106_presets.py) */
 _Static_assert(NELEM(DCO_PX) == NELEM(DCO_PRESETS), "DCO_PX: a row per preset");
 
@@ -138,6 +218,7 @@ static const engine_t ENG_DCO = {
     .npresets = NELEM(DCO_PRESETS),
     .note_on = dco_note_on,
     .render = dco_render,
+    .amp = dco_amp,
     .knob = {P_E4, P_E5, P_ATK, P_REL},
     .poly = DCO_POLY,
     .keep = 0xF3,
@@ -156,5 +237,7 @@ static void dco_track_loaded(track_t *t, uint32_t pi)
     t->p[P_LD_PIT] = x[2];
     t->p[P_LD_FLT] = x[3];
     t->p[P_LD_SHP] = x[4];
-    t->p[P_DRNG] = x[5];
+    t->p[P_DRNG] = x[5];                                 /* RANGE, + 3 with the VCA a GATE */
+    t->p[P_FM1_ATK] = t->p[P_FM1_DEC] = t->p[P_FM1_REL] = 0;   /* the VCA ADSR: as GATE's shape */
+    t->p[P_FM1_SUS] = 127;
 }

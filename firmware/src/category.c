@@ -35,9 +35,8 @@ static const char *const PRESET_CAT[16] = {
     "FFFF",                      /* 11 NOISE: WIND, RAIN, ARCADE, METAL */
     "KUBLPUKU",                  /* 12 FM6: TINE EP, BELL, FM BASS, BRASS, PAD, MARIMBA, ORGAN, PLUCK */
     "DD",                        /* 13 SLICE: CHOP, STUTTER */
-    "PLBKKPPLPUUPUFLKPPUP",      /* 14 DCO: STRINGS, BRASS, SYNTH BASS, PIANO, E PIANO, MOVING STR, CHOIR, FLUTES,
-                                  * STRINGS II, GUITAR, STEEL DRUM, SYNTH PAD, PLUCK SWP, SWEEP, DARK SYNTH, HARPSI,
-                                  * ORCHESTRA, DARK ENS, CHORUS BEL, ETHEREAL (tools/fm106_presets.py) */
+    "PLBKKPPLPUUPUFLKPPUP"       /* 14 DCO: the first 20 (STRINGS .. ETHEREAL), then 50 more (BRASS SWEL ..    */
+    "LLLLLLLLLLLLLLLPPPPPPKKKKKKKKKKKKKKBBBUUUUUUUUUUUU",   /* GLASSY WAH): as tools/fm106_presets.py prints it */
     "BBBBBBBL",                  /* 15 303: ACID, CLASSIC, SQUELCH, SQR BASS, RUBBER, DIST ACID, DEEP, SCREAM */
 };
 static uint32_t preset_cat(uint32_t e, uint32_t k)    /* factory preset k of engine e */

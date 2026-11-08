@@ -804,7 +804,7 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_DETAIL_COND, S_DETAIL_FILL, S_AUTO_COND, S_GLO_FILL, S_SEQ_EUCLID, S_SEQ_EUCLID_DRUM, S_SEQ_EUCLID_64,
        S_MENU_SELECT, S_PROJECT_ERASE, S_CONFIRM_ERASE_PROJ, S_TOOLS_CLEAN, S_CONFIRM_CLEAN,
        S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD,
-       S_EDIT_303, S_TB3_GEN, S_TB3_SCL, S_TB3_STALE, S_TB3_HELP, S_TB3_MODEL, S_TB3_AICD, S_CONFIRM_INIT, S_COUNT };
+       S_EDIT_303, S_TB3_GEN, S_TB3_SCL, S_TB3_STALE, S_TB3_HELP, S_TB3_MODEL, S_TB3_AICD, S_CONFIRM_INIT, S_DCO_RANGE, S_DCO_VCA, S_DCO_VCA_ENV, S_COUNT };
 static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "message_key", "message_nofile", "presets", "presets_nofav", "user",
     "phrases", "project", "tools", "song_empty", "song", "step", "auto_steps", "auto_add_chance", "automation", "drum",
     "drum_hand", "drum_cym", "mixer", "mixer_from_home", "mixer_pan", "env", "env_dest", "lfo", "mod", "fx", "slicer", "dly", "scl", "chord", "chord_wide", "chord_off", "chord_kit", "arp",
@@ -837,7 +837,7 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "menu_select", "project_erase", "confirm_erase_project", "tools_clean", "confirm_clean",
     "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
     "edit_303", "tb3po_generate", "tb3po_scale", "tb3po_stale_playing", "tb3po_help", "tb3po_model_aicd",
-    "tb3po_aicd_generate", "confirm_init"};
+    "tb3po_aicd_generate", "confirm_init", "dco_range", "dco_vca", "dco_vca_env"};
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1284,6 +1284,11 @@ static void setup(int s)
         break;
     }
     case S_CONFIRM_INIT: ui.confirm = CF_INIT_SOUND; ui.confirm_trk = 0; break;
+    /* DCO's P_DRNG at 4' GATE (5): RANGE's KNOB 1 shows 4, the VCA page (ENV's third) GATE (params.c dco_desc) */
+    case S_DCO_RANGE: eng(ENGI_DCO); TSEL->p[P_DRNG] = 5; go_title("RANGE"); break;
+    case S_DCO_VCA: eng(ENGI_DCO); TSEL->p[P_DRNG] = 5; go_title("VCA"); ui.hot_col = 0; ui.hot_t = 30; break;
+    case S_DCO_VCA_ENV: eng(ENGI_DCO); TSEL->p[P_DRNG] = 8; TSEL->p[P_FM1_ATK] = 20; TSEL->p[P_FM1_DEC] = 70;
+        TSEL->p[P_FM1_SUS] = 80; TSEL->p[P_FM1_REL] = 90; go_title("VCA ENV"); break;
     case S_ALG1: case S_ALG2: case S_ALG3: case S_ALG4: case S_ALG5: case S_ALG6: case S_ALG7: case S_ALG8:
         eng(1); TSEL->p[P_E0] = (int16_t)(s - S_ALG1);      /* the 8 DIGITAL charts; FB on the odd ones, IDX high .. 0 */
         TSEL->p[P_E6] = (s - S_ALG1) & 1 ? 40 : 0; TSEL->p[P_E4] = (int16_t)((S_ALG8 - s) * 18);

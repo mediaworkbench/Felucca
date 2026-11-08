@@ -57,7 +57,9 @@ static int ev_id_ok(const track_t *t, uint32_t id)
     const param_desc_t *d;
     if (ev_sid(id))
         return 1;
-    if (id >= P_COUNT || !motion_param(id) || id == P_DRNG || (id >= P_FM1_ATK && id <= P_FM4_LEVEL))
+    if (id >= P_COUNT || !motion_param(id) || id == P_DRNG ||
+        (id >= P_FM1_ATK && id <= P_FM4_LEVEL && !(id <= P_FM1_REL && t->eng_req % NENGINES == ENGI_DCO)))   /* (DCO: the
+                                                                                         * VCA ADSR's four, eng_dco.c) */
         return 0;
     if (id >= P_LN0 && id <= P_LN7)
         return drum_track(t);
@@ -68,7 +70,8 @@ static int ev_id_ok(const track_t *t, uint32_t id)
  * would say two things (ENV ATK, ENV FLT: ENV DEST's, LFO FLT: LFO DEST's) */
 static void ev_name(const track_t *t, uint32_t id, char *b)
 {
-    const char *pre = id >= P_ATK && id <= P_ED_SHP ? "ENV " : id >= P_LRATE && id <= P_LD_AMP ? "LFO " : "";
+    const char *pre = id >= P_ATK && id <= P_ED_SHP ? "ENV " : id >= P_LRATE && id <= P_LD_AMP ? "LFO " :
+                      id >= P_FM1_ATK && id <= P_FM1_REL ? "VCA " : "";
     if (ev_sid(id)) {
         str_cpy(b, id == EV_CHANCE ? "CHANCE" : id == EV_RATCH ? "RATCH" : id == EV_VEL ? "VEL" : "NUDGE", 12);
         return;

@@ -597,6 +597,8 @@ static int32_t env_tick(track_t *t, voice_t *v)
         v->env -= mulq16(v->env, T_ESYNC(t)[2]);
         if (v->env < (1 << 12)) {
             v->env = 0;
+            if (dco_vca_holds(t))                       /* DCO's VCA ADSR ends it (eng_dco.c dco_vca) */
+                break;
             v->stage = 0;
             v->active = 0;
         }
@@ -704,7 +706,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
-        int32_t env, pitch;
+        int32_t env, fenv, pitch;
         if (!v->active)
             continue;
         {
@@ -719,9 +721,11 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
                 v->env = 1 << 24;                       /* (the ADSR's release never ends it) */
                 env = 32767;
             }
+            fenv = env;
             if (e->amp)                                 /* the engine's own amplitude curve */
                 env = e->amp(t, v, env);
-            m.envq15 = e->ownenv ? 0 : env;
+            m.envq15 = e->ownenv ? 0 : e == &ENG_DCO ? fenv : env;   /* (DCO's VCA GATE / ADSR: the ENV destinations
+                                                                         * keep the ADSR, eng_dco.c dco_amp) */
             m.amp1 = e->ownenv ? env : mulq15(env, v->vel * 258);
             if (p[P_LD_AMP])
                 m.amp1 = mulq15(m.amp1, 32767 - mulq15(p[P_LPOL] ? lfo : (lfo + 32768) >> 1, p[P_LD_AMP] * 258));

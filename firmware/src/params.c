@@ -54,7 +54,8 @@ static const char *const N_ROUTE[] = {"CH1-4", "SEL", "CH5-8", "CH9-12", "CH13-1
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
 static const char *const N_RTYPE[] = {"ROOM", "SPRING", "HALL"};   /* G_RTYPE: the reverb bus's model (fx.c) */
-static const char *const N_DRNG[] = {"16", "8", "4"};             /* P_DRNG: DCO's RANGE, in feet (eng_dco.c) */
+static const char *const N_DRNG[] = {"16", "8", "4", "16G", "8G", "4G", "16A", "8A", "4A"};   /* P_DRNG: DCO's RANGE, in
+                                                                       * feet; G: its VCA a GATE, A: its own ADSR (eng_dco.c) */
 static const char *const N_CTYPE[] = {"STD", "I", "II", "I+II"};   /* G_CTYPE: the chorus bus's model (fx.c): STD, BBD I .. */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
@@ -96,7 +97,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_ED_FLT] = PD("FLT", F_BIPCT, -64, 63, 0),
     [P_ED_PIT] = PD("PIT", F_BIPCT, -64, 63, 0),
     [P_ED_SHP] = PD("SHP", F_BIPCT, -64, 63, 0),
-    [P_DRNG] = {"RANGE", F_ENUM, 0, 2, 1, N_DRNG, "FT"},   /* DCO's (eng_dco.c): 16' 8' 4'; P_ED_FX until 1.6.1 */
+    [P_DRNG] = {"RANGE", F_ENUM, 0, 8, 1, N_DRNG, "FT"},   /* DCO's (eng_dco.c): 16' 8' 4', 3..5 GATE, 6..8 ADSR; P_ED_FX until 1.6.1 */
     [P_LRATE] = PD("RATE", F_LFOHZ, 0, 127, 60),
     [P_LWAVE] = PE("WAVE", N_LWAVE, 0),
     [P_LPHASE] = PD("PHS", F_INT, 0, 127, 0),
@@ -477,7 +478,8 @@ static const page_t PAGES[] = {
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
     {"EDIT 2", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E4, P_E5, P_E6, P_E7}},
     {"FILTER", FAM_EDIT, SC_TRACK, GR_NONE, {P_FTYPE, P_E4, P_E5, P_E7}},   /* ANALOG only (1.5, #104): TYPE CUT RES KTR */
-    {"RANGE", FAM_EDIT, SC_TRACK, GR_NONE, {P_DRNG, P_E0, P_E2, P_E3}},   /* DCO only: RANGE WAVE SUB NOIS (eng_dco.c) */
+    {"RANGE", FAM_EDIT, SC_TRACK, GR_NONE, {P_DRNG, P_E0, P_E2, P_E3}},   /* DCO only: RANGE WAVE SUB NOIS (eng_dco.c;
+                                                                             * KNOB 1 16 8 4: P_DRNG's RANGE, dco_desc) */
     {"LANES", FAM_EDIT, SC_TRACK, GR_NONE, {P_LN0, P_LN1, P_LN2, P_LN3}},   /* DRUM only: the lane levels */
     {"LANES 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_LN4, P_LN5, P_LN6, P_LN7}},
     {"SLICES", FAM_EDIT, SC_TRACK, GR_SLICES, {0xFF, 0xFF, 0xFF, 0xFF}},   /* SLICE only: the slices by hand (ui_slice.c) */
@@ -518,11 +520,42 @@ static const page_t PAGES[] = {
      * GLO > GLOBAL; its TUNE is MENU > AUDIO's now), again HOME (ui.c home_tap) */
     {"MIXER", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}},
     {"CLOCK", FAM_TRK, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, 0xFF}},
+    {"VCA", FAM_ENV, SC_TRACK, GR_NONE, {P_DRNG, 0xFF, 0xFF, 0xFF}},   /* DCO only (page_visible: P_DRNG): the Juno's VCA
+                                                                     * switch, ENV / GATE / ADSR, P_DRNG's other half
+                                                                     * (dco_desc). Last, so no page moves: ENV's third
+                                                                     * (open_family) */
+    {"VCA ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_FM1_ATK, P_FM1_DEC, P_FM1_SUS, P_FM1_REL}},   /* with VCA on ADSR only: the
+                                                                     * VCA's own envelope (eng_dco.c dco_vca) */
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 static uint8_t mod_ui_slot;      /* the MOD page: the matrix slot (0..3) KNOB 2..4 edit */
 
 static const param_desc_t *tb3_desc(const page_t *pg, uint32_t slot, int16_t **vp);   /* (ui_tb3po.c) */
+
+/* DCO's P_DRNG holds two switches, RANGE 16' 8' 4' and the VCA ENV / GATE / ADSR (eng_dco.c: range + 3 x the VCA's): on
+ * the device two knobs, RANGE's KNOB 1 and the VCA page's (ENV), each its half, its value in dco_show (ui_input.c
+ * edit_param writes both halves back: dco_knob). The editor sees P_DRNG's nine values */
+static const char *const N_DCO_VCA[] = {"ENV", "GATE", "ADSR"};
+static const param_desc_t D_DCO_RANGE = {"RANGE", F_ENUM, 0, 2, 1, N_DRNG, "FT"};
+static const param_desc_t D_DCO_VCA = {"VCA", F_ENUM, 0, 2, 0, N_DCO_VCA, 0};
+static int16_t dco_show;
+static const param_desc_t *dco_desc(const page_t *pg, int16_t **valp)
+{
+    int32_t v = clamp(TSEL->p[P_DRNG], 0, 8);
+    dco_show = (int16_t)(pg->fam == FAM_ENV ? v / 3 : v % 3);
+    *valp = &dco_show;
+    return pg->fam == FAM_ENV ? &D_DCO_VCA : &D_DCO_RANGE;
+}
+static void dco_knob(const page_t *pg, int32_t v)   /* KNOB 1 of RANGE / VCA turned to v (ui_input.c edit_param) */
+{
+    int32_t r = clamp(TSEL->p[P_DRNG], 0, 8), g = r / 3;
+    r %= 3;
+    if (pg->fam == FAM_ENV)
+        g = clamp(v, 0, 2);
+    else
+        r = clamp(v, 0, 2);
+    TSEL->p[P_DRNG] = (int16_t)(r + 3 * g);
+}
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg->id[slot];
@@ -543,6 +576,8 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     }
     if (pg->graph == GR_MOD)                          /* SRC DST AMT of the slot shown */
         id += 3u * mod_ui_slot;
+    if (id == P_DRNG)                                 /* DCO's RANGE / VCA: a half each */
+        return dco_desc(pg, valp);
     *valp = &TSEL->p[id];
     return track_desc(TSEL, id);
 }

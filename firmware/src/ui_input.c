@@ -1076,6 +1076,11 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (!d || !vp || d->max == d->min)
         return;
     v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->fmt == F_ENUM ? 0 : d->max - d->min));
+    if (vp == &dco_show) {                                /* DCO's RANGE / VCA: its half of P_DRNG (params.c dco_desc;
+                                                           * no motion, as RANGE never had) */
+        dco_knob(pg, v);
+        return;
+    }
     if (vp == &TSEL->p[P_ATSNS] && !*vp && v)             /* AFTERTOUCH on (1.8): the engine's routing, if none */
         at_turn_on(TSEL);
     *vp = (int16_t)v;

@@ -18,8 +18,11 @@ The firmware uses [Felucca-Engines](https://github.com/hugelton/Felucca-Engines)
 On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it from this branch ([BUILDING.md](BUILDING.md)).
 
 - **DCO engine (14): a Juno-106 voice.** Up to 4 voices a track. EDIT 1 has WAVE, PW, SUB, NOIS, CUT, RES, KEY and HPF; RANGE
-  (16' 8' 4') has a page of its own; the track's LFO / ENV -> SHP move the pulse width (PWM). 20 presets from the Juno-106
-  factory patches. After Ultramaster KR-106 (Kayrock Screenprinting) through
+  (16' 8' 4') has a page of its own; the track's LFO / ENV -> SHP move the pulse width (PWM). ENV's third page, VCA (DCO
+  tracks), is the Juno's VCA switch: ENV, or GATE: the level stays full while a key is held (the ADSR then moves only the
+  filter) and shuts on its release, or ADSR, beyond a Juno: the VCA gets its own envelope on a page VCA ENV, ENV then
+  moves only the filter. The switch is kept with RANGE (the web editor shows RANGE as 16 8 4, then with G and A).
+  70 presets from the Juno-106 factory patches (brass, leads, winds, strings, organs, keys, basses, plucks, bells). After Ultramaster KR-106 (Kayrock Screenprinting) through
   [fm-106](https://github.com/PatttF/fm-106) (PatttF), both GPL-3.0.
 - **BBD chorus.** FX > CHORUS, KNOB 3 (TYPE): STD as before, or the Juno's stereo BBD chorus I, II or I+II.
 - **303 engine (15): a TB-303 bass voice** (Open303 by Robin Schmidt, with the Devilfish ranges and the SOFT / RAT drive of

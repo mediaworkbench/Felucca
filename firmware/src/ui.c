@@ -439,6 +439,8 @@ static int page_visible(uint32_t i)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
     if (PAGES[i].id[0] == P_DRNG)                     /* RANGE: DCO's (eng_dco.c) */
         return TSEL->eng_req % NENGINES == ENGI_DCO;
+    if (PAGES[i].fam == FAM_ENV && PAGES[i].id[0] == P_FM1_ATK)   /* VCA ENV: DCO's, with its VCA on ADSR */
+        return TSEL->eng_req % NENGINES == ENGI_DCO && TSEL->p[P_DRNG] >= 6;
     if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
         return TSEL->eng_req % NENGINES == ENGI_FM6;
 #if FELUCCA_SLICE
