@@ -5,12 +5,6 @@ This is a fork of [Felucca Firmware for the M-VAVE FM-1](https://github.com/huge
 
 ## Overview
 
-- [Web installer](https://hugelton.github.io/Felucca/)
-- [Web editor](https://hugelton.github.io/Felucca/webapp/editor/) ([source](https://github.com/hugelton/Felucca-WebApp))
-- [Manual and release notes](https://github.com/hugelton/Felucca/wiki/Home)
-- [Building from source](BUILDING.md)
-- [Issue tracker](https://github.com/hugelton/Felucca/issues)
-
 The firmware uses [Felucca-Engines](https://github.com/hugelton/Felucca-Engines) (MIT) for its built-in sound engines and [felucca-bsp](https://github.com/hugelton/felucca-bsp) (MPL-2.0) for the FM-1 hardware layer. Neither repository implies support for Felucca on other hardware.
 
 ## New in this fork
