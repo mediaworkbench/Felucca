@@ -849,7 +849,13 @@ unchanged; the settings record stays PER5 (its favourites already have engine 15
   0 notes, as any cleared step).
 - **A project's FM6 area of a 303 track** (`FM6_GET` of that track after loading it: the init patch): it holds TB-3PO's
   settings instead of an FM6 patch: "TB3P", version 1, DENS ACCENT SLIDE OCTS ROOT SCALE OCTAVE MUTATE, the seed in five
-  7-bit bytes, zeros (every byte 0..127, as the format asks). A full backup carries it as it is.
+  7-bit bytes; from 1.6.2 at byte 18 a 1, then MODE (0 TB-3PO, 1 AICD, 2 ACID), TEMP (two bytes), AICD's DENS ACCENT
+  SLIDE, SCALE (bytes 18..25); then at byte 26 a 1 and the extended settings, 0 = off / auto in each: 27 KEEP, 28 STYLE,
+  29 NOTES, 30 RHYTHM, 31 TIES, 32 JOIN, 33 BEST, 34 FORM, 35 FLAIR, 36 TWIST, 37 T.BARS, 38 MORPH, 39 SLIP, 40 P.LEN,
+  41 M.TYPE, 42 POCKET, 43 ANSWER, 44 ROOT<, 45 KEYS, 46..50 line B's seed, 51..52 the note pool (12 bits), 53..54 the
+  line's number (SEED, 1..9999); zeros (every byte 0..127, as the format asks). Firmware before MODE ACID reads its
+  part only (to byte 25) and clamps MODE 2 to AICD. SCALE reaches 9 (PDOM BLUE LOCR DARK
+  after MAJ). A full backup carries it as it is.
 
 ## v7: full backup (65-67)
 

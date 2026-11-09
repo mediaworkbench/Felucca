@@ -20,6 +20,7 @@
  *    rounding); a draw's odds those; Aicd's lines (gate, accent, slide, the scale's share as its own sampler's, 20000
  *    lines); the biases and TEMP each their way; every step a model step; a MUTATE a run of a quarter of the line at
  *    most; the cost; the UI (MODEL, the knobs, OCT+ / OCT-), auto MUTATE, a project; the same lines (a hash).
+ * 8. what the audit found (B1..B9): automation kept, no note 0, no stray slide, undo's seed, DENS's order, the editor told.
  * Built and run by tests/run_tests.sh (with tests/ref/x0x_tb3po_ref.c, -ffp-contract=off; argv[1] gen_aicd.py's
  * reference, build/host/aicd_ref.txt). */
 #define UI_TEST_NO_MAIN 1
@@ -51,7 +52,7 @@ static void cfg_rand(uint8_t *c)                  /* random settings, the corner
         c[k] = (uint8_t)(rnd(4) ? rnd(101) : EDGE[rnd(4)]);
     c[3] = (uint8_t)(1u + rnd(3));
     c[4] = (uint8_t)rnd(12);
-    c[5] = (uint8_t)rnd(TB3_NSCALES);
+    c[5] = (uint8_t)rnd(6u);                       /* (X0X's six scales) */
     c[6] = (uint8_t)rnd(5);
     c[7] = (uint8_t)rnd(17);
 }
@@ -270,9 +271,11 @@ static int ui_tb3(void)
     press(B_ARP);
     ok &= cur_page()->graph == GR_TB3SCL;
     press(B_ARP);
-    ok &= cur_page()->graph == (AICD_ON ? GR_TB3MOD : GR_TB3GEN) && (!AICD_ON || str_eq(cur_page()->title, "MODEL"));
-    if (AICD_ON)
-        press(B_ARP);
+    ok &= cur_page()->graph == GR_TB3MOD && str_eq(cur_page()->title, "MODEL");
+    press(B_ARP);                                   /* (FORM, PLAY, LINK) */
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
     ok &= cur_page()->graph == GR_TB3GEN;
     set_engine(0);
     frame();
@@ -292,12 +295,10 @@ static int ui_tb3(void)
     press(B_ARP);
     memcpy(before, t->step, sizeof before);         /* (the steps before: an undo goes back to them) */
     press(B_OCTUP);
-    for (k = 0; k < 4u; k++)
-        hx[k] = "0123456789ABCDEF"[(tb3_cfg[0].seed >> (12u - 4u * k)) & 15u];
-    hx[4] = 0;
-    ok = line_is(t, &tb3_cfg[0]) && !seq_is_empty(t) && song.octave == 0 && tb3_cfg[0].seed != 0xBEEFu &&
+    snprintf(hx, sizeof hx, "%u", (unsigned)tb3_cfg[0].line);
+    ok = tb3_cfg[0].line >= 1u && tb3_cfg[0].line <= 9999u && tb3_cfg[0].seed == tb3_new_seed(tb3_cfg[0].line) && line_is(t, &tb3_cfg[0]) && !seq_is_empty(t) && song.octave == 0 && tb3_cfg[0].seed != 0xBEEFu &&
          !strncmp(ui.msg, "NEW LINE ", 9) && str_eq(ui.msg + 9, hx);
-    bad += check("tb3po ui: OCT+ a new line (a new seed, \"NEW LINE xxxx\"), not the octave", ok);
+    bad += check("tb3po ui: OCT+ a new line (a new number, \"NEW LINE 4711\"), not the octave", ok);
     {
         tb3_step_t l0[NSTEP], cur[NSTEP], want[NSTEP];
         tb3_knobs_t k0, k1;
@@ -517,7 +518,7 @@ static int live(void)
             oksc &= b[i].flags == a[i].flags;
             if (k.scale != k0.scale && b[i].note > 0u && b[i].note < 127u)
                 oksc &= live_in(k.scale, o1) && (!live_in(k.scale, o0) || b[i].note == a[i].note) &&
-                        (o1 - o0 <= 2 && o0 - o1 <= 2);
+                        (o1 - o0 <= 3 && o0 - o1 <= 3);   /* (DARK, 1 b2 b5: its gaps are the widest) */
             if (!k.scale || k.scale == k0.scale)
                 oksc &= b[i].note == a[i].note;
         }
@@ -644,6 +645,11 @@ static int project(void)
     song.playing = 0;
     set_engine_of(&trk[0], ENGI_303);
     tb3_cfg[0] = (tb3_cfg_t){55, 66, 77, 3, 4, 5, 2, 9, 0xDEADBEEFu, AICD_ON, 150, 20, 30, 63, 2};
+    tb3_cfg[0].keep = 2; tb3_cfg[0].style = 3; tb3_cfg[0].notes = 4; tb3_cfg[0].rhythm = 5; tb3_cfg[0].ties = 9;
+    tb3_cfg[0].join = 1; tb3_cfg[0].best = 6; tb3_cfg[0].form = 2; tb3_cfg[0].flair = 33; tb3_cfg[0].twist = 44;
+    tb3_cfg[0].tbars = 12; tb3_cfg[0].morph = 55; tb3_cfg[0].slip = 7; tb3_cfg[0].plen = 9; tb3_cfg[0].mtype = 2;
+    tb3_cfg[0].pocket = 3; tb3_cfg[0].answer = 4; tb3_cfg[0].rootfol = 2; tb3_cfg[0].keys = 1;
+    tb3_cfg[0].pool = 0xABCu; tb3_cfg[0].line = 9876; tb3_cfg[0].seed_b = 0xCAFEF00Du;
     g = tb3_cfg[0];
     tb3_cfg[1].density = 12;                        /* (track 2 not a 303: not saved, the defaults back) */
     fm6_patch[1][3] ^= 0x15;                        /* track 2's own FM6 patch */
@@ -654,7 +660,9 @@ static int project(void)
     project_load(2);
     fm6_unpack(FM6_INIT, init);
     memcpy(v, fm6_patch[0], FP_SIZE);
-    ok = ok && cfg_eq(&tb3_cfg[0], &g) && trk[0].eng_req == ENGI_303 && !memcmp(v, init, FP_SIZE) &&
+    ok = ok && cfg_eq(&tb3_cfg[0], &g) && !memcmp(&tb3_cfg[0].keep, &g.keep,
+                                                  offsetof(tb3_cfg_t, seed_b) + sizeof g.seed_b - offsetof(tb3_cfg_t, keep)) &&
+         trk[0].eng_req == ENGI_303 && !memcmp(v, init, FP_SIZE) &&
          tb3_cfg[1].density == 70u && !memcmp(fm6_patch[1], own2, FP_SIZE);
     bad += check("tb3po project: a 303 track's settings and seed back, its FM6 patch the init one, track 2's own kept", ok);
     return bad;
@@ -997,6 +1005,10 @@ static int aicd_ui(void)
     turn(EN_K2, 3);                                 /* (KNOB 2..4 nothing here) */
     turn(EN_K1, 1);
     ok &= tb3_cfg[0].mode == TB3_AICD && tb3_rt[0].stale && tb3_cfg[0].density == 70u;
+    press(B_ARP);                                   /* (SHAPE FORM PLAY LINK) */
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
     press(B_ARP);
     turn(EN_K1, 5);
     turn(EN_K2, -3);
@@ -1014,8 +1026,12 @@ static int aicd_ui(void)
     {
         step_t line[NSTEP];
         tb3_step_t m[NSTEP], o[NSTEP];
-        memcpy(line, t->step, sizeof line);
-        press(B_OCTDN);
+        for (n0 = 0; n0 < 8u; n0++) {               /* (the model may draw the same run again: many of its steps are forced) */
+            memcpy(line, t->step, sizeof line);
+            press(B_OCTDN);
+            if (memcmp(line, t->step, sizeof line))
+                break;
+        }
         tb3_read(t->step, m);
         ok &= msg_is("MUTATED") && memcmp(line, t->step, sizeof line);
         tb3_read(line, o);
@@ -1078,9 +1094,1329 @@ static int aicd_ui(void)
 }
 #endif
 
+/* -------------------------------------------- 8. what the audit found --- */
+static int fixes(void)
+{
+    int bad = 0, ok;
+    uint32_t i, it;
+    track_t *t;
+    tb3_step_t cur[NSTEP];
+
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    press(B_OCTUP);
+    ok = motion_put(t, 3, P_PAN, 10, 0) == 0 && motion_count(t) == 1u;
+    press(B_OCTDN);
+    ok &= motion_count(t) == 1u;
+    press(B_OCTUP);
+    ok &= motion_count(t) == 1u;
+    bad += check("tb3po fix: OCT+ / OCT- keep the track's automation and locks", ok);
+    {
+        uint32_t s1 = tb3_cfg[0].seed, s0;
+        step_t after[NSTEP];
+        press(B_OCTUP);
+        s0 = tb3_cfg[0].seed;
+        memcpy(after, t->step, sizeof after);
+        hold(B_SAVE);
+        ok = tb3_cfg[0].seed == s1 && memcmp(after, t->step, sizeof after);
+        hold(B_SAVE);
+        ok &= tb3_cfg[0].seed == s0 && !memcmp(after, t->step, sizeof after);
+        bad += check("tb3po fix: SAVE held undoes the line and its seed, again redoes both", ok);
+    }
+
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    ok = seq_is_empty(t);
+    turn(EN_K1, 30);                                 /* DENS up on steps never written */
+    tb3_read(t->step, cur);
+    for (i = 0, it = 0; i < 16u; i++)
+        if (tb3_gated(&cur[i])) {
+            it++;
+            ok &= cur[i].note >= 12u;
+        }
+    ok &= it > 0u;
+    bad += check("tb3po fix: DENS up on an empty track plays notes of its own, never note 0", ok);
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    ok = 1;
+    for (it = 0; it < 12u; it++)
+        press(B_OCTDN);
+    tb3_read(t->step, cur);
+    for (i = 0; i < 16u; i++)
+        ok &= !tb3_gated(&cur[i]) || cur[i].note >= 12u;
+    bad += check("tb3po fix: MUTATE on an empty track never plays note 0", ok);
+
+    {
+        tb3_cfg_t g;
+        tb3_step_t a[NSTEP], b[NSTEP];
+        tb3_knobs_t k0, k;
+        uint32_t lvl[2] = {0, 0}, nl[2] = {0, 0};
+        ok = 1;
+        for (it = 0; it < 2000u; it++) {
+            tb3_defaults(&g, 0x5000u + it);
+            g.density = 80;
+            g.slide = 40;
+            tb3_gen(&g, a, 16);
+            k0 = k = tb3_knobs(&g);
+            k.dens = 40;
+            k.sld = 0;
+            tb3_live_line(a, &k0, &k, g.seed, 16, b);
+            for (i = 0; i < 16u; i++)
+                ok &= !(b[i].flags & TB3_SLD);
+            k = k0;
+            k.dens = 30;
+            tb3_live_line(a, &k0, &k, g.seed, 16, b);
+            for (i = 0; i < 16u; i++)
+                if (tb3_gated(&a[i])) {
+                    uint32_t x = tb3_level(i) == 0u ? 0u : tb3_level(i) == 4u ? 1u : 2u;
+                    if (x < 2u) {
+                        nl[x]++;
+                        lvl[x] += (uint32_t)tb3_gated(&b[i]);
+                    }
+                }
+        }
+        bad += check("tb3po fix: SLIDE 0 with DENS down leaves no slide", ok);
+        bad += check("tb3po fix: DENS down keeps step 1 and thins the off-beats first",
+                     lvl[0] * 100u / nl[0] > 90u && lvl[1] * 100u / nl[1] < 40u);
+    }
+    {
+        tb3_step_t a[NSTEP];
+        memset(a, 0, sizeof a);
+        for (i = 0; i < NSTEP; i++) {
+            a[i].note = 40;
+            a[i].flags = TB3_NOTE;
+        }
+        a[3].flags = TB3_TIE;
+        bad += check("tb3po fix: ACCENT never picks a TIE, SLIDE still may",
+                     !tb3_elig(a, 3, 16, TB3_ACC) && tb3_elig(a, 2, 16, TB3_ACC) && tb3_elig(a, 3, 16, TB3_SLD));
+    }
+    {
+        uint32_t n0;
+        tb3_poll();
+        fm1_ms += 2000u;
+        tb3_poll();
+        sync_reload = 0;
+        n0 = tb3_auto_n;
+        tb3_auto_n = n0 + 1u;
+        fm1_ms += 2000u;
+        tb3_poll();
+        ok = sync_reload != 0;
+        sync_reload = 0;
+        tb3_auto_n = n0 + 2u;
+        tb3_poll();
+        ok &= !sync_reload;                          /* (at most once a second) */
+        sync_reload = 0;
+        bad += check("tb3po fix: an auto MUTATE tells the editor, not more than once a second", ok);
+    }
+#if AICD_ON
+    {
+        tb3_cfg_t g;
+        tb3_step_t b;
+        tb3_defaults(&g, 1);
+        g.base_oct = 0;
+        g.root = 0;
+        aicd_put(&g, &b, (1u << 3) | 4u);            /* (the model's lowest: offset -15, note -3) */
+        bad += check("tb3po fix: AICD at OCTAVE 0: under note 0 an octave up, not all clamped to 0", b.note == 9u);
+    }
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    press(B_OCTUP);
+    song.playing = 1;
+    turn(EN_K1, -20);
+    ok = tb3_rt[0].pending != 0;
+    {
+        tb3_knobs_t k0 = tb3_rt[0].k0, k = tb3_knobs(&tb3_cfg[0]);
+        tb3_step_t want[NSTEP];
+        tb3_live_line(tb3_rt[0].anchor, &k0, &k, tb3_cfg[0].seed, 16, want);
+        press(B_ARP);
+        press(B_ARP);
+        turn(EN_K1, 1);                              /* MODE, with the knob's bar still to come */
+        tb3_read(t->step, cur);
+        ok &= !tb3_rt[0].pending && tb3_cfg[0].mode == TB3_AICD && !memcmp(cur, want, sizeof cur);
+    }
+    song.playing = 0;
+    bad += check("tb3po fix: MODE changed within a bar: the knob turned reaches the line first", ok);
+#endif
+    return bad;
+}
+
+/* -------------------------------------------------- 9. the workflow --- */
+static int workflow(void)
+{
+    int bad = 0, ok;
+    uint32_t b, i;
+    track_t *t;
+    tb3_step_t cur[NSTEP], a0[NSTEP], want[NSTEP];
+
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->engine = ENGI_303;
+    eng_mem_claim(t);
+    t->p[P_SLEN] = 32;
+    press(B_ARP);
+    press(B_OCTUP);
+    tb3_read(t->step, a0);
+    song.playing = 1;
+    seq_start();
+    for (b = 0; b < 40000u && t->seq_idx != 3u; b++)
+        seq_tick(t, CTL);
+    {
+        uint32_t last, hit = 0;
+        press(B_OCTUP);
+        ok = tb3_next[0].state == TB3Q_READY;
+        memcpy(want, tb3_next[0].line, sizeof want);
+        last = t->seq_idx;
+        for (b = 0; b < 40000u && !hit; b++) {
+            seq_tick(t, CTL);
+            tb3_read(t->step, cur);
+            if (t->seq_idx != last && t->seq_idx == 16u) {
+                hit = 1;
+                ok &= tb3_lhash(cur) == tb3_lhash(want);
+            } else
+                ok &= !memcmp(cur, a0, sizeof cur);
+            last = t->seq_idx;
+        }
+        ok &= hit;
+    }
+    frame();
+    ok &= tb3_next[0].state == TB3Q_NONE;
+    bad += check("tb3po flow: OCT+ while playing: the line as it was until the next bar (step 17), then the new one", ok);
+
+    press(B_OCTDN);
+    ok = tb3_next[0].state == TB3Q_READY;
+    hold(B_SAVE);
+    ok &= tb3_next[0].state == TB3Q_NONE;
+    bad += check("tb3po flow: a line waiting for its bar: SAVE held takes it back", ok);
+
+    press(B_OCTUP);
+    ok = tb3_next[0].state == TB3Q_READY;
+    memcpy(want, tb3_next[0].line, sizeof want);
+    song.playing = 0;
+    frame();
+    tb3_read(t->step, cur);
+    ok &= tb3_next[0].state == TB3Q_NONE && tb3_lhash(cur) == tb3_lhash(want);
+    bad += check("tb3po flow: a line waiting when the transport stops: written at once", ok);
+
+    /* SEED: a number is a line */
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    ok = cur_page()->graph == GR_TB3MOD;
+    turn(EN_K2, 40);
+    {
+        uint16_t no = tb3_cfg[0].line;
+        tb3_read(t->step, a0);
+        ok &= no >= 1u && tb3_cfg[0].seed == tb3_new_seed(no);
+        press(B_OCTUP);
+        tb3_cfg[0].line = no;
+        tb3_cfg[0].seed = tb3_new_seed(no);
+        tb3_gen(&tb3_cfg[0], want, 16);
+        tb3_read(t->step, cur);
+        ok &= memcmp(cur, a0, sizeof cur) != 0;
+        for (i = 0; i < 16u; i++)
+            ok &= want[i].note == a0[i].note && want[i].flags == a0[i].flags;
+    }
+    bad += check("tb3po flow: SEED: a number is always the same line", ok);
+
+    /* HIST: back through the last lines, and to the line it left */
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    {
+        tb3_step_t l1[NSTEP], l2[NSTEP], l3[NSTEP];
+        uint32_t s2;
+        press(B_OCTUP);
+        tb3_read(t->step, l1);
+        press(B_OCTUP);
+        tb3_read(t->step, l2);
+        s2 = tb3_cfg[0].seed;
+        press(B_OCTUP);
+        tb3_read(t->step, l3);
+        turn(EN_K3, 1);
+        tb3_read(t->step, cur);
+        ok = !memcmp(cur, l2, sizeof cur) && tb3_cfg[0].seed == s2 && tb3_hist[0].at == 1u;
+        turn(EN_K3, 1);
+        tb3_read(t->step, cur);
+        ok &= !memcmp(cur, l1, sizeof cur);
+        turn(EN_K3, -2);
+        tb3_read(t->step, cur);
+        ok &= !memcmp(cur, l3, sizeof cur) && tb3_hist[0].at == 0u;
+        turn(EN_K3, 7);                              /* (only as far as there are lines: 3) */
+        ok &= tb3_hist[0].at == 3u;
+        turn(EN_K3, -3);
+    }
+    bad += check("tb3po flow: HIST: the last lines back and forth, the seed with them, the line it left", ok);
+
+    /* KEEP */
+    {
+        tb3_cfg_t g;
+        tb3_step_t old[NSTEP], b1[NSTEP];
+        uint8_t list[NSTEP];
+        uint32_t n = 0, j = 0;
+        tb3_defaults(&g, 0x77u);
+        tb3_gen(&g, old, 16);
+        g.seed = 0x99u;
+        tb3_gen(&g, b1, 16);
+        tb3_keep(2, old, b1, 16);
+        ok = 1;
+        for (i = 0; i < NSTEP; i++)
+            ok &= b1[i].flags == old[i].flags;
+        bad += check("tb3po flow: KEEP RHYTHM: the old gates, accents and slides", ok);
+        for (i = 0; i < 16u; i++)
+            if ((old[i].flags & TB3_GATE) == TB3_NOTE)
+                list[n++] = old[i].note;
+        tb3_gen(&g, b1, 16);
+        tb3_keep(1, old, b1, 16);
+        ok = n > 0u;
+        for (i = 0; i < 16u; i++)
+            if ((b1[i].flags & TB3_GATE) == TB3_NOTE)
+                ok &= b1[i].note == list[j++ % n];
+        bad += check("tb3po flow: KEEP NOTES: the old notes in order over the new rhythm", ok);
+    }
+
+    /* old projects: no extended block, all off */
+    {
+        uint8_t pk[FM6_PACKED];
+        tb3_cfg[2].keep = 2;
+        tb3_cfg[2].line = 77;
+        tb3_pack(2, pk);
+        memset(pk + 26, 0, FM6_PACKED - 26u);
+        tb3_cfg[2].keep = 1;
+        ok = tb3_unpack(2, pk) && !tb3_cfg[2].keep && !tb3_cfg[2].line;
+        tb3_reset();
+        bad += check("tb3po flow: a project from before the extended settings: all off", ok);
+    }
+    return bad;
+}
+
+/* 10. MODE ACID: repeatable, inside its pool, its shares exact, near the corpus; FORM; the pages */
+static tb3_cfg_t acid_cfg(uint32_t seed)
+{
+    tb3_cfg_t g;
+    tb3_defaults(&g, seed);
+    g.mode = TB3_ACID;
+    return g;
+}
+static int acid_valid(const tb3_step_t *b, uint32_t len)   /* no orphan TIE, no slide but into a note, none on step 1 */
+{
+    uint32_t i, ok = 1;
+    for (i = 0; i < len; i++) {
+        uint32_t g = b[i].flags & TB3_GATE, nx = b[(i + 1u) % len].flags & TB3_GATE;
+        if (g == TB3_TIE && (!i || !(b[i - 1u].flags & TB3_GATE) || (b[i].flags & (TB3_ACC | TB3_SLD))))
+            ok = 0;
+        if ((b[i].flags & TB3_SLD) && nx != TB3_NOTE)
+            ok = 0;
+    }
+    return (int)ok;
+}
+static uint32_t acid_pcs(const tb3_cfg_t *g, const tb3_step_t *b, uint32_t len)   /* its pitch classes over the root, a mask */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < len; i++)
+        if ((b[i].flags & TB3_GATE) == TB3_NOTE)
+            m |= 1u << (((uint32_t)b[i].note + 120u - g->root) % 12u);
+    return m;
+}
+static uint32_t pop12(uint32_t m)
+{
+    uint32_t n = 0;
+    for (; m; m &= m - 1u)
+        n++;
+    return n;
+}
+static int acid(void)
+{
+    int bad = 0, ok;
+    uint32_t i, j, seed, len;
+    tb3_cfg_t g;
+    tb3_step_t a[NSTEP], b[NSTEP];
+    static const uint8_t LENS[] = {1, 2, 3, 7, 8, 12, 16, 17, 32, 63, 64};
+
+    ok = 1;
+    for (seed = 1; seed < 400u; seed++) {
+        g = acid_cfg(seed * 2654435761u | 1u);
+        g.style = (uint8_t)(seed % ACID_NSTYLE);
+        g.form = (uint8_t)(seed % ACID_NFORM);
+        g.rhythm = (uint8_t)(seed % ACID_NRHYTHM);
+        g.scale = (uint8_t)(seed % TB3_NSCALES);
+        len = LENS[seed % sizeof LENS];
+        tb3_gen(&g, a, len);
+        tb3_gen(&g, b, len);
+        ok &= !memcmp(a, b, sizeof a);
+    }
+    bad += check("acid: the same seed and settings, the same line", ok);
+
+    ok = 1;
+    for (seed = 1; seed < 3000u; seed++) {
+        uint32_t notes, c = 0, sl = 0, on = 0, hi = 0;
+        g = acid_cfg(seed * 2654435761u | 1u);
+        g.density = (uint8_t)(seed * 7u % 101u);
+        g.accent = (uint8_t)(seed * 13u % 101u);
+        g.slide = (uint8_t)(seed * 31u % 101u);
+        g.style = (uint8_t)(seed % ACID_NSTYLE);
+        g.form = (uint8_t)(seed % ACID_NFORM);
+        g.rhythm = (uint8_t)(seed % ACID_NRHYTHM);
+        g.ties = (uint8_t)(seed % ACID_NTIES);
+        g.scale = (uint8_t)(seed % TB3_NSCALES);
+        g.oct_range = (uint8_t)(1u + seed % 3u);
+        len = LENS[seed % sizeof LENS];
+        tb3_gen(&g, b, len);
+        ok &= acid_valid(b, len);
+        for (i = 0; i < len; i++) {
+            on += (b[i].flags & TB3_GATE) != TB3_REST;
+            c += (b[i].flags & TB3_ACC) != 0u;
+            sl += (b[i].flags & TB3_SLD) != 0u;
+            if (b[i].flags & TB3_GATE)
+                hi = b[i].note > hi ? b[i].note : hi;
+        }
+        notes = acid_count(b, len);
+        ok &= on >= 1u && c == (g.accent * notes + 50u) / 100u && sl <= (g.slide * notes + 50u) / 100u + 1u;
+        ok &= hi < (uint32_t)(12 * (g.base_oct + 1) + g.root + 12 * g.oct_range);
+    }
+    bad += check("acid: ties and slides valid, ACCENT exact, SLIDE at most the knob's, inside OCTS (any LEN, FORM, RHYTHM)", ok);
+
+    ok = 1;
+    for (seed = 1; seed < 500u; seed++) {
+        uint32_t want = 1u + seed % 7u, r = 0, sc;
+        g = acid_cfg(seed * 40503u | 1u);
+        g.notes = (uint8_t)want;
+        g.ties = 1;
+        g.rhythm = AR_16TH;
+        g.scale = (uint8_t)(seed % TB3_NSCALES);
+        sc = TB3_SCALES[g.scale].len;
+        tb3_gen(&g, b, 64);
+        ok &= pop12(acid_pcs(&g, b, 64)) <= (want < sc ? want : sc) && (acid_pcs(&g, b, 64) & 1u);
+        {
+            uint32_t pool = acid_pcs(&g, b, 64);
+            acid_t c;
+            uint32_t m = 0;
+            acid_ctx(&g, &c);
+            for (i = 0; i < c.npool; i++)
+                m |= 1u << c.pool[i];
+            ok &= !(pool & ~m);
+            for (j = 0; j < 32u; j++)
+                tb3_mut(&g, b, 64, &r);
+            ok &= !(acid_pcs(&g, b, 64) & ~m) && acid_valid(b, 64);
+        }
+    }
+    bad += check("acid: NOTES holds, the root in it, 32 MUTATEs stay inside the pool", ok);
+
+    {   /* the shape of the lines, against the corpus's (AICD: repeats 23 %, octaves 17 %, root 28 %) and TB-3PO's 7 % / 7 % */
+        uint32_t n = 0, rep = 0, oct = 0, root = 0, b1 = 0, b0 = 0, m1 = 0, m0 = 0;
+        for (seed = 1; seed < 2000u; seed++) {
+            uint32_t r = 0, last = 999;
+            g = acid_cfg(seed * 2654435761u | 1u);
+            tb3_gen(&g, b, 64);
+            for (i = 0; i < 64u; i++) {
+                if ((b[i].flags & TB3_GATE) != TB3_NOTE)
+                    continue;
+                n++;
+                root += (b[i].note + 120u - g.root) % 12u == 0u;
+                if (last != 999u) {
+                    uint32_t d = b[i].note > last ? b[i].note - last : last - b[i].note;
+                    rep += !d;
+                    oct += d && d % 12u == 0u;
+                }
+                last = b[i].note;
+                if (!(i & 3u)) {
+                    b0++;
+                    b1 += (b[i].note + 120u - g.root) % 12u == 0u;
+                }
+            }
+            for (j = 0; j < 32u; j++)
+                tb3_mut(&g, b, 64, &r);
+            for (i = 0; i < 64u; i += 4u)
+                if ((b[i].flags & TB3_GATE) == TB3_NOTE) {
+                    m0++;
+                    m1 += (b[i].note + 120u - g.root) % 12u == 0u;
+                }
+        }
+        printf("acid: repeats %u %%, octaves %u %%, root %u %%; root on the beats %u %%, after 32 MUTATEs %u %%\n",
+               100u * rep / n, 100u * oct / n, 100u * root / n, 100u * b1 / b0, 100u * m1 / m0);
+        bad += check("acid: repeats and octaves near the corpus's, the root stays on the beats after 32 MUTATEs",
+                     100u * rep / n >= 15u && 100u * rep / n <= 35u && 100u * oct / n >= 9u && 100u * oct / n <= 27u &&
+                     100u * root / n >= 20u && 100u * m1 / m0 >= 30u && 100u * b1 / b0 >= 40u);
+    }
+
+    {   /* FORM: at LEN 64 parts of 16; A repeats nearly exactly, a B doesn't */
+        uint32_t aa = 0, ab = 0, n = 0;
+        for (seed = 1; seed < 400u; seed++) {
+            g = acid_cfg(seed * 2654435761u | 1u);
+            g.form = 1;
+            tb3_gen(&g, b, 64);
+            for (i = 0; i < 12u; i++) {                 /* (the turnaround is in the last part) */
+                aa += b[i].flags == b[16u + i].flags && (!(b[i].flags & TB3_GATE) || b[i].note == b[16u + i].note);
+                ab += b[i].flags == b[48u + i].flags && (!(b[i].flags & TB3_GATE) || b[i].note == b[48u + i].note);
+                n++;
+            }
+        }
+        printf("acid: FORM AAAB: A against A %u %%, A against B %u %%\n", 100u * aa / n, 100u * ab / n);
+        bad += check("acid: FORM AAAB repeats its A, its B is another", 100u * aa / n >= 75u && 100u * ab / n <= 50u);
+    }
+
+    ok = 1;                                         /* the live knobs on a line with ties: reversible, no orphan */
+    for (seed = 1; seed < 500u; seed++) {
+        tb3_knobs_t k0, k;
+        tb3_step_t l[NSTEP];
+        uint32_t d, o = 0;
+        g = acid_cfg(seed * 2654435761u | 1u);
+        g.ties = 8;
+        tb3_gen(&g, a, 32);
+        k0 = tb3_knobs(&g);
+        tb3_live_line(a, &k0, &k0, g.seed, 32, l);
+        ok &= !memcmp(a, l, sizeof a);
+        k = k0;
+        for (d = 0; d <= 100u; d += 10u) {
+            k.dens = (uint8_t)d;
+            tb3_live_line(a, &k0, &k, g.seed, 32, l);
+            for (i = 1; i < 32u; i++)
+                o += (l[i].flags & TB3_GATE) == TB3_TIE && !(l[i - 1u].flags & TB3_GATE);
+        }
+        ok &= !o;
+    }
+    bad += check("acid: DENS turned back gives the line back, never leaves a TIE after a rest", ok);
+
+    {   /* a project keeps it, in either build; an older MODE byte's clamp */
+        uint8_t pk[FM6_PACKED];
+        ui_power_on();
+        tb3_cfg[1] = acid_cfg(77);
+        tb3_cfg[1].style = 3; tb3_cfg[1].notes = 2; tb3_cfg[1].rhythm = 5; tb3_cfg[1].ties = 11; tb3_cfg[1].form = 4;
+        tb3_cfg[1].scale = 9;
+        tb3_pack(1, pk);
+        tb3_defaults(&tb3_cfg[1], 0);
+        ok = tb3_unpack(1, pk) && tb3_cfg[1].mode == TB3_ACID && tb3_cfg[1].style == 3u && tb3_cfg[1].notes == 2u &&
+             tb3_cfg[1].rhythm == 5u && tb3_cfg[1].ties == 11u && tb3_cfg[1].form == 4u && tb3_cfg[1].scale == 9u;
+        pk[19] = 1;
+        ok &= tb3_unpack(1, pk) && tb3_cfg[1].mode == (AICD_ON ? TB3_AICD : TB3_TB3PO);
+        bad += check("acid: a project keeps MODE ACID and its settings (a build without AICD: AICD's lines load as TB-3PO)", ok);
+    }
+
+    {   /* the pages: only in ACID, in order, the knobs; MODE past AICD where it isn't built */
+        track_t *t;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        t->p[P_SLEN] = 16;
+        press(B_ARP);
+        press(B_ARP);
+        press(B_ARP);
+        ok = cur_page()->graph == GR_TB3MOD;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3FRM;           /* (TB-3PO: no SHAPE) */
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3PLY;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3LNK;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3GEN;
+        press(B_ARP);
+        press(B_ARP);
+        turn(EN_K1, 2);                                 /* to ACID (AICD_ON: through AICD) */
+        ok &= tb3_cfg[0].mode == TB3_ACID && tb3_rt[0].stale;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3SHP;
+        turn(EN_K1, 3);
+        turn(EN_K3, 2);
+        ok &= tb3_cfg[0].style == 3u && tb3_cfg[0].rhythm == 2u;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3FRM;
+        turn(EN_K1, 1);
+        ok &= tb3_cfg[0].form == 1u;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3PLY;
+        press(B_ARP);
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3GEN;
+        press(B_OCTUP);
+        ok &= tb3_rt[0].have && acid_valid(tb3_rt[0].anchor, 16);
+        bad += check("acid ui: SHAPE and FORM in MODE ACID only, their knobs, OCT+ writes a valid line", ok);
+    }
+    return bad;
+}
+
+/* 11. AICD's SHAPE: JOIN, BEST, a MUTATE that rejoins; off: as before (aicd_lines' hash) */
+static int aicd_shape(void)
+{
+#if AICD_ON
+    int bad = 0, ok;
+    uint32_t i, j, seed, n;
+    tb3_cfg_t g;
+    tb3_step_t a[NSTEP], b[NSTEP];
+    {   /* every node, JOIN on: a step whenever the model has one; its odds never all zero */
+        aicd_bias_t bi;
+        uint32_t off = 0, on = 0, draws = 0, forced = 0;
+        tb3_defaults(&g, 7);
+        g.mode = TB3_AICD;
+        aicd_bias(&g, &bi);
+        for (seed = 1; seed < 400u; seed++) {
+            uint32_t r = seed * 2654435761u | 1u, code;
+            aicd_at_t x, y;
+            uint32_t r2 = r;
+            aicd_start(&x, &r);
+            y = x;
+            r2 = r;
+            for (j = 0; j < 128u; j++) {
+                bi.join = 0;
+                off += !aicd_next(&x, &bi, &r, &code);
+                bi.join = 1;
+                on += !aicd_next(&y, &bi, &r2, &code);
+                draws++;
+            }
+        }
+        {
+            aicd_at_t x;
+            uint32_t r = 99u, code, nodes = AICD_GRP[AICD_NSTEP + 1u], m, only = 0;
+            aicd_edge_t e[AICD_MAXE];
+            bi.join = 1;
+            for (m = 0; m < nodes; m++) {
+                uint32_t pos, c, st = 0;
+                aicd_seek(m, &x);
+                pos = x.pos;
+                c = aicd_body(&pos, x.last, e);
+                for (j = 0; j < c; j++)
+                    st += aicd_lastof(e[j].n) < AICD_NSTEP;
+                if (c && !st)
+                    only++;
+                for (j = 0; j < 8u; j++) {
+                    aicd_at_t z = x;
+                    int got = aicd_next(&z, &bi, &r, &code);
+                    forced += !got && st;
+                }
+            }
+            printf("aicd: JOIN: pattern ends per 128 steps %u -> %u; %u of %u nodes have only an end (those stay)\n",
+                   off * 128u / draws, on * 128u / draws, only, nodes);
+            ok = !forced;
+        }
+        bad += check("aicd JOIN: every node with a step on offer never ends the pattern (all nodes, no all-zero odds)", ok && on * 3u < off);
+    }
+    ok = 1;
+    for (seed = 1; seed < 300u; seed++) {
+        tb3_defaults(&g, seed * 2654435761u | 1u);
+        g.mode = TB3_AICD;
+        tb3_gen(&g, a, 32);
+        g.best = 1;
+        tb3_gen(&g, b, 32);
+        ok &= !memcmp(a, b, sizeof a);
+    }
+    bad += check("aicd BEST 1: the one line, as before", ok);
+    ok = 1;
+    {
+        uint32_t s1 = 0, s8 = 0, off = 0;
+        for (seed = 1; seed < 300u; seed++) {
+            uint32_t v;
+            tb3_defaults(&g, seed * 2654435761u | 1u);
+            g.mode = TB3_AICD;
+            aicd_generate(&g, a, 16);
+            v = aicd_score(&g, a, 16);
+            s1 += v;
+            g.best = 8;
+            tb3_gen(&g, b, 16);
+            ok &= aicd_score(&g, b, 16) >= v;
+            s8 += aicd_score(&g, b, 16);
+            tb3_gen(&g, a, 16);
+            ok &= !memcmp(a, b, sizeof a);
+            off += (((uint32_t)b[0].note + 120u - g.root) % 12u == 0u) && tb3_gated(&b[0]);
+        }
+        printf("aicd: BEST 8: mean score %u -> %u (x100), the root on step 1 in %u %%\n", s1 * 100u / 299u, s8 * 100u / 299u, off * 100u / 299u);
+        bad += check("aicd BEST 8: never below the one line's score, repeatable, better on average", ok && s8 > s1);
+    }
+    {   /* a MUTATE that rejoins */
+        uint32_t k0 = 0, k1 = 0, tot = 0;
+        for (seed = 1; seed < 800u; seed++) {
+            uint32_t r0 = seed * 40503u | 1u, r1 = r0, x0, x1, run, at;
+            tb3_defaults(&g, seed * 2654435761u | 1u);
+            g.mode = TB3_AICD;
+            tb3_gen(&g, a, 32);
+            memcpy(b, a, sizeof a);
+            x0 = r0;
+            aicd_mutate(&g, a, 32, &r0);
+            g.join = 1;
+            x1 = r1;
+            aicd_mutate(&g, b, 32, &r1);
+            run = 8u;
+            at = ((tb3_u(&x0) >> 8) * 32u) >> 16;
+            (void)x1;
+            k0 += (uint32_t)aicd_joins(&g, a, (at + run) % 32u, 32);
+            k1 += (uint32_t)aicd_joins(&g, b, (at + run) % 32u, 32);
+            tot++;
+        }
+        printf("aicd: a MUTATE leading back into the line as the model knows: %u %% -> %u %% (JOIN)\n", k0 * 100u / tot, k1 * 100u / tot);
+        bad += check("aicd JOIN: a MUTATE rejoins the line more often", k1 > k0);
+    }
+    {   /* JOIN's auto MUTATE: not in the ISR, drawn by the main loop, on the bar after */
+        track_t *t;
+        tb3_step_t cur[NSTEP], was[NSTEP];
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        t->p[P_SLEN] = 16;
+        tb3_cfg[0].mode = TB3_AICD;
+        tb3_cfg[0].join = 1;
+        tb3_cfg[0].mutate_bars = 1;
+        { uint32_t r = 0; tb3_apply(t, 1, &r); }
+        song.playing = 1;
+        tb3_read(t->step, was);
+        tb3_pass(t, 0);
+        tb3_read(t->step, cur);
+        ok = tb3_rt[0].want == 1u && !memcmp(was, cur, sizeof was);
+        tb3_poll();
+        tb3_read(t->step, cur);
+        ok &= !tb3_rt[0].want && tb3_next[0].state == TB3Q_READY && !memcmp(was, cur, sizeof was);
+        tb3_commit(t);
+        tb3_poll();
+        ok &= tb3_next[0].state == TB3Q_NONE;
+        tb3_cfg[0].join = 0;
+        tb3_read(t->step, was);
+        tb3_pass(t, 0);
+        tb3_read(t->step, cur);
+        ok &= !tb3_rt[0].want && tb3_next[0].state == TB3Q_NONE;
+        song.playing = 0;
+        bad += check("aicd JOIN: an auto MUTATE drawn by the main loop, landing on a bar; JOIN off: as before, in the pass", ok);
+    }
+    {   /* the page */
+        track_t *t;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        t->p[P_SLEN] = 16;
+        press(B_ARP);
+        press(B_ARP);
+        press(B_ARP);
+        turn(EN_K1, 1);
+        press(B_ARP);
+        ok = cur_page()->graph == GR_TB3SHP && tb3_cfg[0].mode == TB3_AICD;
+        turn(EN_K1, 1);
+        turn(EN_K2, 5);
+        turn(EN_K3, 3);
+        ok &= tb3_cfg[0].join == 1u && tb3_cfg[0].best == 6u && tb3_rt[0].stale;
+        press(B_ARP);
+        ok &= cur_page()->graph == GR_TB3FRM;
+        turn(EN_K1, 1);                                 /* (FORM: ACID's only) */
+        ok &= !tb3_cfg[0].form;
+        bad += check("aicd ui: SHAPE has JOIN and BEST; on FORM, FORM itself is ACID's", ok);
+    }
+    return bad;
+#else
+    return 0;
+#endif
+}
+
+/* 12. Performance: SLIP / P.LEN, M.TYPE, FLAIR, MORPH, KEYS, TWIST */
+static void perf_line(track_t *t, uint32_t len, uint32_t seed)
+{
+    uint32_t r = 0;
+    t->p[P_SLEN] = (int16_t)len;
+    tb3_cfg[trk_index(t)].seed = seed;
+    tb3_apply(t, 1, &r);
+    tb3_rt[trk_index(t)].pending = 0;
+}
+static int perf(void)
+{
+    int bad = 0, ok;
+    uint32_t i, j, seed;
+    tb3_step_t a[NSTEP], b[NSTEP], c[NSTEP];
+    track_t *t;
+
+    ok = 1;                                         /* SLIP / P.LEN */
+    for (seed = 1; seed < 400u; seed++) {
+        tb3_cfg_t g;
+        uint8_t l0[NSTEP], l1[NSTEP];
+        uint32_t n = 0, m = 0, slip = seed % 16u, plen = seed % 17u;
+        tb3_defaults(&g, seed * 2654435761u | 1u);
+        tb3_gen(&g, a, 32);
+        for (i = 3; i < 32u; i += 7u)
+            if ((a[i].flags & TB3_GATE) == TB3_NOTE && (a[i - 1u].flags & TB3_GATE))
+                a[i].flags = TB3_TIE;               /* (a TIE takes no note) */
+        memcpy(b, a, sizeof b);
+        tb3_slip(b, 32, slip, plen);
+        for (i = 0; i < 32u; i++) {
+            ok &= b[i].flags == a[i].flags;
+            if ((a[i].flags & TB3_GATE) == TB3_NOTE) {
+                l0[n++] = a[i].note;
+                l1[m++] = b[i].note;
+            } else {
+                ok &= b[i].note == a[i].note;       /* (a rest, a TIE: their own) */
+            }
+        }
+        for (i = 0; i < n; i++) {
+            uint32_t w = plen && plen < n ? plen : n;
+            ok &= l1[i] == l0[(i % w + slip) % n];
+        }
+        memcpy(b, a, sizeof b);
+        tb3_slip(b, 32, 0, 0);
+        ok &= !memcmp(a, b, sizeof a);
+    }
+    bad += check("play: SLIP turns the note list, P.LEN cycles it; gates, TIEs and rests as they were; 0 / OFF nothing", ok);
+
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    tb3_cfg[0].mutate_bars = 1;
+    tb3_cfg[0].mtype = 1;                            /* VARY */
+    perf_line(t, 16, 0x1234u);
+    tb3_read(t->step, a);
+    tb3_pass(t, 0);
+    tb3_read(t->step, b);
+    ok = memcmp(a, b, sizeof a) && tb3_rt[0].varied;
+    tb3_pass(t, 0);
+    tb3_read(t->step, c);
+    ok &= !memcmp(a, c, sizeof a) && !tb3_rt[0].varied;
+    tb3_pass(t, 0);                                  /* a variation, and a hand edit in it: kept */
+    tb3_read(t->step, b);
+    t->step[3].note[0] = 77;
+    t->step[3].time = ST_NOTE;
+    t->step[3].n = 1;
+    tb3_pass(t, 0);
+    tb3_read(t->step, c);
+    ok &= c[3].note == 77u && !memcmp(c, b, 3u * sizeof *b);
+    bad += check("play: M.TYPE VARY: a variation for one pass, then the line exactly; a step edited in it kept", ok);
+
+    ok = 1;
+    ui_power_on();
+    t = TSEL;
+    set_engine(ENGI_303);
+    j = 0;
+    for (seed = 1; seed < 60u; seed++) {            /* TURN: only the last 4 */
+        uint32_t ch = 0;
+        tb3_cfg[0].mutate_bars = 1;
+        tb3_cfg[0].mtype = 2;
+        tb3_cfg[0].mode = seed % 3u == 1u ? AICD_ON : seed % 3u == 2u ? TB3_ACID : TB3_TB3PO;
+        perf_line(t, 16, seed * 2654435761u | 1u);
+        tb3_rt[0].have = 0;
+        tb3_read(t->step, a);
+        tb3_pass(t, 0);
+        tb3_read(t->step, b);
+        for (i = 0; i < 12u; i++)
+            ok &= a[i].note == b[i].note && (a[i].flags & TB3_GATE) == (b[i].flags & TB3_GATE) &&
+                  (a[i].flags & TB3_ACC) == (b[i].flags & TB3_ACC);
+        for (; i < 16u; i++)
+            ch += a[i].note != b[i].note || a[i].flags != b[i].flags;
+        j += ch;
+    }
+    bad += check("play: M.TYPE TURN: only the last 4 steps redrawn (each MODE)", ok && j > 30u);
+
+    {   /* FLAIR */
+        uint32_t rat = 0, cond = 0, wrong = 0, tot = 0;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        for (seed = 1; seed < 100u; seed++) {
+            step_t was[NSTEP];
+            tb3_cfg[0].flair = 60;
+            tb3_cfg[0].slide = 25;
+            perf_line(t, 32, seed * 2654435761u | 1u);
+            memcpy(was, t->step, sizeof was);
+            tb3_read(t->step, a);
+            for (i = 0; i < 32u; i++) {
+                uint32_t on = step_ratchet(&t->step[i]) > 1u || step_cond(&t->step[i]);
+                rat += step_ratchet(&t->step[i]) > 1u;
+                cond += step_cond(&t->step[i]) == 9u;
+                tot += on;
+                wrong += on && (tb3_level(i) < 3u || (a[i].flags & (TB3_GATE | TB3_SLD)) != TB3_NOTE);
+            }
+            perf_line(t, 32, seed * 2654435761u | 1u);
+            wrong += memcmp(was, t->step, sizeof was) != 0;
+            tb3_cfg[0].flair = 0;
+            perf_line(t, 32, seed * 2654435761u | 1u);
+            for (i = 0; i < 32u; i++)
+                wrong += step_ratchet(&t->step[i]) > 1u || step_cond(&t->step[i]);
+        }
+        bad += check("play: FLAIR: ratchets and 4:4 pickups on weak plain notes only, the same each time, none at 0", !wrong && rat > cond && cond && tot);
+    }
+
+    ui_power_on();                                  /* MORPH */
+    t = TSEL;
+    set_engine(ENGI_303);
+    t->p[P_SLEN] = 16;
+    perf_line(t, 16, 0xABCDu);
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    ok = cur_page()->graph == GR_TB3PLY;
+    tb3_read(t->step, a);
+    turn(EN_K1, 100);
+    frame();
+    tb3_read(t->step, b);
+    {
+        uint32_t same = 0;
+        for (i = 0; i < 16u; i++)
+            same += tb3_b[0][i].flags == b[i].flags && tb3_b[0][i].note == b[i].note;
+        printf("play: MORPH 100: %u of 16 steps are line B's\n", same);
+        ok &= tb3_cfg[0].morph == 100u && tb3_rt[0].bok && same >= 14u;
+    }
+    turn(EN_K1, -100);
+    frame();
+    tb3_read(t->step, c);
+    ok &= !memcmp(a, c, sizeof a);
+    bad += check("play: MORPH 0..100: line A to line B (stopped: at once); back: line A exactly", ok);
+
+    ok = 1;
+    turn(EN_K1, 100);
+    frame();
+    tb3_read(t->step, b);
+    press(B_OCTDN);                                  /* A <> B */
+    frame();
+    tb3_read(t->step, c);
+    ok &= tb3_cfg[0].morph == 100u;
+    turn(EN_K1, -100);
+    frame();
+    tb3_read(t->step, c);
+    {
+        uint32_t same = 0;
+        for (i = 0; i < 16u; i++)
+            same += c[i].note == b[i].note && c[i].flags == b[i].flags;
+        ok &= same >= 14u;
+    }
+    press(B_OCTDN);
+    frame();
+    tb3_read(t->step, c);
+    ok &= !memcmp(a, c, 16u * sizeof *a);
+    press(B_OCTUP);                                  /* a new B: A stays */
+    frame();
+    tb3_read(t->step, c);
+    ok &= !memcmp(a, c, 16u * sizeof *a) && str_eq(ui.msg, "NEW B");
+    bad += check("play: MORPH: OCT- swaps A and B and back, OCT+ a new B, A untouched", ok);
+
+    ok = 1;
+    turn(EN_K1, 50);
+    frame();
+    tb3_read(t->step, b);
+    t->step[5].note[0] = 81;
+    t->step[5].time = ST_NOTE;
+    t->step[5].n = 1;
+    turn(EN_K2, 1);                                  /* SLIP: the line is read again */
+    frame();
+    ok &= tb3_cfg[0].morph == 0u;
+    bad += check("play: a hand edit under MORPH makes that line A (MORPH back to 0)", ok);
+
+    {   /* a project: B from its seed, on the main loop */
+        uint8_t pk[FM6_PACKED];
+        uint32_t want;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        perf_line(t, 16, 0x7777u);
+        tb3_cfg[0].seed_b = 0xBEEFu;
+        tb3_cfg[0].morph = 40;
+        tb3_b_make(0);
+        memcpy(a, tb3_b[0], sizeof a);
+        want = tb3_lhash(a);
+        tb3_pack(0, pk);
+        tb3_cfg[0].morph = 0;
+        memset(tb3_b[0], 0, sizeof tb3_b[0]);
+        ok = tb3_unpack(0, pk) && !tb3_rt[0].bok && tb3_cfg[0].morph == 40u;
+        tb3_poll();
+        ok &= tb3_rt[0].bok && tb3_lhash(tb3_b[0]) == want;
+        bad += check("play: a project's MORPH: line B drawn again from its seed", ok);
+    }
+
+    {   /* KEYS */
+        uint32_t k;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        perf_line(t, 16, 0x4242u);
+        tb3_read(t->step, a);
+        tb3_cfg[0].keys = 1;
+        tb3_cfg[0].root = 9;
+        k = 3;
+        fm1_in.notes = 1u << k;
+        keyboard_block();
+        ok = tb3_cfg[0].root == kb_map(t, k) % 12u && kb_note[k] == KB_SILENT && !t->seq_n;
+        fm1_in.notes = 0;
+        keyboard_block();
+        tb3_poll();
+        tb3_read(t->step, b);
+        ok &= tb3_rt[0].pending == 0u;
+        for (i = 0; i < NSTEP; i++)
+            ok &= (b[i].note + 120 - a[i].note - (tb3_cfg[0].root + 12 - 9)) % 12 == 0;
+        tb3_cfg[0].keys = 2;
+        tb3_cfg[0].root = 0;
+        tb3_cfg[0].pool = 0;
+        tb3_cfg[0].mode = TB3_ACID;
+        fm1_in.notes = 1u << 1;
+        keyboard_block();
+        fm1_in.notes = 1u << 1 | 1u << 5;
+        keyboard_block();
+        j = tb3_cfg[0].pool;
+        ok &= pop12(j) == 2u && tb3_rt[0].stale;
+        fm1_in.notes = 0;
+        keyboard_block();
+        fm1_in.notes = 1u << 8;
+        keyboard_block();
+        ok &= pop12(tb3_cfg[0].pool) == 1u;
+        fm1_in.notes = 0;
+        keyboard_block();
+        {
+            uint32_t m = tb3_cfg[0].pool;
+            tb3_cfg_t g = tb3_cfg[0];
+            g.seed = 0x5151u;
+            tb3_gen(&g, b, 32);
+            ok &= !(acid_pcs(&g, b, 32) & ~m);
+        }
+        bad += check("play: KEYS: ROOT moves the line, none sounds; POOL: the keys held are the note pool", ok);
+    }
+
+    {   /* TWIST */
+        uint32_t hi = 0, top_at = 0;
+        ui_power_on();
+        t = TSEL;
+        set_engine(ENGI_303);
+        perf_line(t, 16, 0x1111u);
+        for (i = 0; i < 64u; i++)
+            t->step[i].flags &= (uint8_t)~SF_ACCENT;
+        for (i = 0; i < 32u; i++) {
+            t->seq_idx = (uint16_t)(i % 16u);
+            tb3_twist(t, !i);
+        }
+        ok = tb3_tw[0] == 0;
+        tb3_cfg[0].twist = 100;
+        tb3_cfg[0].tbars = 2;
+        for (i = 0; i < 32u; i++) {
+            t->seq_idx = (uint16_t)(i % 16u);
+            tb3_twist(t, !i);
+            if (!i)
+                ok &= tb3_tw[0] == 0;
+            if ((uint32_t)tb3_tw[0] > hi) {
+                hi = (uint32_t)tb3_tw[0];
+                top_at = i;
+            }
+        }
+        ok &= top_at == 16u && hi == 10200u;
+        t->seq_idx = 0;
+        tb3_twist(t, 0);
+        ok &= tb3_tw[0] == 0;
+        t->step[4].flags |= SF_ACCENT;
+        t->step[5].flags |= SF_ACCENT;
+        t->seq_idx = 5;
+        tb3_twist(t, 0);
+        ok &= tb3_tw[0] > 2500;
+        tb3_cfg[0].twist = 0;
+        tb3_twist(t, 0);
+        ok &= tb3_tw[0] == 0;
+        bad += check("play: TWIST: 0 at OFF, an arc over T.BARS back to 0, a lift on accent runs", ok);
+    }
+    return bad;
+}
+
+/* 13. Tracks that listen: POCKET, LINK's groove, ANSWER, ROOT< */
+static void kick_on(track_t *d, uint32_t i, uint32_t on)
+{
+    grid_hit(d, i, DV_KICK, on);
+}
+static int linked(void)
+{
+    int bad = 0, ok;
+    uint32_t i, p;
+    track_t *t, *d;
+    tb3_step_t a[NSTEP], b[NSTEP];
+
+    ui_power_on();
+    t = &trk[0];
+    d = &trk[1];
+    song.sel = 0;
+    set_engine_of(t, ENGI_303);
+    set_engine_of(d, ENGI_DRUM);
+    d->p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i++)
+        kick_on(d, i, !(i & 3u));                  /* four on the floor */
+    tb3_cfg[0].density = 90;
+    perf_line(t, 32, 0x2468u);
+    tb3_read(t->step, a);
+    ok = 1;
+    for (p = 1; p <= 3u; p++) {
+        tb3_cfg[0].pocket = (uint8_t)p;
+        tb3_kick_take(0);
+        tb3_live(t);
+        tb3_read(t->step, b);
+        for (i = 0; i < 32u; i++) {
+            uint32_t kk = !(i & 3u);
+            if (p == 1u || p == 3u)
+                ok &= !kk || !tb3_gated(&b[i]);
+            if (p == 2u)
+                ok &= !kk || tb3_gated(&b[i]);
+            if (p == 3u && (i & 3u) == 1u)
+                ok &= tb3_gated(&b[i]);
+        }
+    }
+    tb3_cfg[0].pocket = 0;
+    tb3_rt[0].pending = 1;
+    tb3_live(t);
+    tb3_read(t->step, b);
+    ok &= !memcmp(a, b, sizeof a);
+    bad += check("link: POCKET DODGE / LOCK / ANSWER the first DRUM track's kick (its LEN repeated); OFF: the line back", ok);
+
+    tb3_cfg[0].pocket = 1;                          /* the drums edited: the main loop sees it within a second */
+    tb3_kick_take(0);
+    tb3_live(t);
+    kick_on(d, 6, 1);
+    fm1_ms += 1100u;
+    tb3_poll();
+    tb3_read(t->step, b);
+    ok = !tb3_gated(&b[6]) && !tb3_gated(&b[22]) && !tb3_rt[0].pending;
+    tb3_cfg[0].pocket = 0;
+    bad += check("link: POCKET follows the drums as they are edited (stopped: at once)", ok);
+
+#if DBRAIN_ON
+    {
+        step_t was[NSTEP];
+        memcpy(was, d->step, sizeof was);
+        tb3_cfg[0].pocket = 1;
+        press(B_ARP);
+        while (cur_page()->graph != GR_TB3LNK)
+            press(B_ARP);
+        press(B_OCTUP);
+        tb3_read(t->step, b);
+        ok = memcmp(was, d->step, sizeof was) != 0 && !strncmp(ui.msg, "NEW GROOVE ", 11);
+        for (i = 0; i < 32u; i++)
+            ok &= !((step_lanes(&d->step[i % 16u]) >> DV_KICK) & 1u) || !tb3_gated(&b[i]);
+        tb3_cfg[0].pocket = 0;
+        bad += check("link: LINK's OCT+: a new drum pattern and a new line around its kick", ok);
+    }
+#endif
+
+    {   /* ANSWER */
+        track_t *o = &trk[2];
+        tb3_step_t ob[NSTEP];
+        uint32_t m;
+        ui_power_on();
+        song.sel = 0;
+        t = &trk[0];
+        set_engine_of(t, ENGI_303);
+        set_engine_of(o, ENGI_303);
+        perf_line(o, 16, 0x9999u);
+        tb3_read(o->step, ob);
+        ok = 1;
+        for (m = 1; m <= 4u; m++) {
+            tb3_cfg[0].answer = (uint8_t)m;
+            perf_line(t, 16, 0x1357u);
+            tb3_read(t->step, b);
+            for (i = 0; i < 16u; i++) {
+                if (m == 1u)
+                    ok &= !(tb3_gated(&ob[i]) && tb3_gated(&b[i]));
+                else {
+                    ok &= tb3_gated(&ob[i]) == tb3_gated(&b[i]) || ((ob[i].flags & TB3_GATE) == TB3_TIE);
+                    if ((b[i].flags & TB3_GATE) == TB3_NOTE) {
+                        int32_t dlt = (int32_t)b[i].note - (int32_t)ob[i].note;
+                        ok &= m == 4u ? dlt == 12 : m == 3u ? dlt >= 6 && dlt <= 8 : dlt >= 3 && dlt <= 4;
+                    }
+                }
+            }
+        }
+        tb3_read(o->step, b);
+        ok &= !memcmp(ob, b, sizeof ob);
+        bad += check("link: ANSWER REST / 3RD / 5TH / OCT against the other 303 track, which stays as it is", ok);
+    }
+
+    {   /* ROOT< */
+        track_t *c = &trk[3];
+        ui_power_on();
+        song.sel = 0;
+        t = &trk[0];
+        set_engine_of(t, ENGI_303);
+        set_engine_of(c, 0);
+        c->p[P_SLEN] = 16;
+        for (i = 0; i < 16u; i++)
+            c->step[i].time = ST_REST, c->step[i].n = 0;
+        c->step[0].time = ST_NOTE, c->step[0].n = 2, c->step[0].note[0] = 64, c->step[0].note[1] = 55;   /* E, G under it */
+        tb3_cfg[0].root = 9;
+        perf_line(t, 16, 0x8642u);
+        tb3_read(t->step, a);
+        tb3_cfg[0].rootfol = 4;
+        c->seq_idx = 0;
+        t->seq_idx = 0;
+        tb3_bar(t, 0);
+        tb3_read(t->step, b);
+        ok = tb3_rt[0].fol == 7u && tb3_knobs(&tb3_cfg[0]).root == 7u;
+        for (i = 0; i < 16u; i++)
+            ok &= (b[i].note + 12u - a[i].note) % 12u == 10u && b[i].flags == a[i].flags;
+        ok &= tb3_cfg[0].root == 9u;               /* (runtime only: the project's ROOT stays) */
+        tb3_cfg[0].rootfol = 4;
+        c->step[0].note[1] = 59;                    /* (B under the E now: the lowest) */
+        tb3_bar(t, 0);
+        ok &= tb3_rt[0].fol == 11u;
+        bad += check("link: ROOT< follows the source track's lowest note at each bar, the ROOT setting stays", ok);
+    }
+    return bad;
+}
+
+/* 14. Review fixes (after Phase 5): POCKET after a MUTATE, ROOT< for new lines, TWIST once stopped, A<>B's number,
+ * M.TYPE with JOIN, LINK's footer */
+static int review(void)
+{
+    int bad = 0, ok;
+    uint32_t i, on, p;
+    track_t *t, *d, *c;
+    tb3_step_t b[NSTEP], e[NSTEP];
+
+    ui_power_on();                                  /* POCKET: a MUTATE's new notes, VARY's too */
+    t = &trk[0];
+    d = &trk[1];
+    song.sel = 0;
+    set_engine_of(t, ENGI_303);
+    set_engine_of(d, ENGI_DRUM);
+    d->p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i++)
+        kick_on(d, i, !(i & 3u));
+    ok = 1;
+    for (p = 0; p < 3u; p++) {
+        tb3_cfg[0].density = 90;
+        tb3_cfg[0].mtype = (uint8_t)p;
+        tb3_cfg[0].mutate_bars = 1;
+        perf_line(t, 32, 0x2468u + p);
+        tb3_cfg[0].pocket = 1;
+        tb3_kick_take(0);
+        tb3_live(t);
+        for (i = 0; i < 6u; i++) {
+            t->seq_idx = 0;
+            tb3_bar(t, 0);
+            tb3_read(t->step, b);
+            for (on = 0; on < 32u; on++)
+                ok &= (on & 3u) || !tb3_gated(&b[on]);
+        }
+        tb3_cfg[0].pocket = 0;
+    }
+    kick_on(d, 6, 1);                               /* the drums edited after MUTATEs: followed */
+    tb3_cfg[0].pocket = 1;
+    tb3_cfg[0].mtype = 0;
+    fm1_ms += 1100u;
+    tb3_poll();
+    tb3_read(t->step, b);
+    ok &= !tb3_gated(&b[6]) && !tb3_gated(&b[22]);
+    tb3_cfg[0].pocket = 0;
+    bad += check("review: POCKET holds after auto MUTATEs (DRIFT, VARY, TURN) and follows the drums after them", ok);
+
+    ui_power_on();                                  /* ROOT<: a new line, a MUTATE in the followed key */
+    t = &trk[0];
+    c = &trk[3];
+    song.sel = 0;
+    set_engine_of(t, ENGI_303);
+    set_engine_of(c, 0);
+    c->p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i++)
+        c->step[i].time = ST_REST, c->step[i].n = 0;
+    c->step[0].time = ST_NOTE, c->step[0].n = 1, c->step[0].note[0] = 64;
+    tb3_cfg[0].root = 9;
+    tb3_cfg[0].rootfol = 4;
+    tb3_rt[0].fol = 4;
+    perf_line(t, 16, 0x1234u);
+    tb3_poll();
+    tb3_read(t->step, b);
+    {
+        tb3_cfg_t g = tb3_cfg[0];
+        uint32_t m = 0, r = 0, sc = 0;
+        g.root = 4;
+        tb3_gen(&g, e, 16);
+        ok = tb3_cfg[0].root == 9u;
+        for (i = 0; i < 16u; i++)
+            ok &= !tb3_gated(&b[i]) || (b[i].note == e[i].note && b[i].flags == e[i].flags);
+        for (i = 0; i < TB3_SCALES[g.scale].len; i++)
+            sc |= 1u << TB3_SCALES[g.scale].deg[i];
+        for (p = 0; p < 20u; p++)
+            tb3_apply(t, 0, &r);
+        tb3_poll();
+        tb3_read(t->step, b);
+        for (i = 0; i < 16u; i++)
+            if (tb3_gated(&b[i]))
+                m |= 1u << ((b[i].note + 120u - 4u) % 12u);
+        ok &= !(m & ~sc);
+    }
+    bad += check("review: ROOT< following: a new line and 20 MUTATEs in the followed key, ROOT as it was", ok);
+
+    ui_power_on();                                  /* TWIST: nothing left once stopped or off */
+    t = &trk[0];
+    set_engine_of(t, ENGI_303);
+    tb3_cfg[0].twist = 100;
+    song.playing = 1;
+    for (i = 0; i < 10u; i++) {
+        t->seq_idx = (uint16_t)i;
+        tb3_twist(t, !i);
+    }
+    ok = tb3_tw[0] != 0;
+    tb3_poll();
+    ok &= tb3_tw[0] != 0;                           /* (playing, on: as seq_enter set it) */
+    tb3_cfg[0].twist = 0;
+    tb3_poll();
+    ok &= tb3_tw[0] == 0;
+    tb3_cfg[0].twist = 100;
+    tb3_twist(t, 0);
+    song.playing = 0;
+    tb3_poll();
+    ok &= tb3_tw[0] == 0;
+    bad += check("review: TWIST leaves no cutoff offset once stopped or turned off", ok);
+
+    ui_power_on();                                  /* A<>B: B has no number */
+    t = TSEL;
+    set_engine(ENGI_303);
+    perf_line(t, 16, 0xABCDu);
+    tb3_cfg[0].line = 4711;
+    while (cur_page()->graph != GR_TB3PLY)
+        press(B_ARP);
+    press(B_OCTDN);
+    frame();
+    ok = tb3_cfg[0].line == 0u;
+    bad += check("review: A<>B: the header no longer shows A's number for B", ok);
+
+#if AICD_ON
+    ui_power_on();                                  /* M.TYPE VARY in AICD with JOIN: in the pass, not the main loop's */
+    t = TSEL;
+    set_engine(ENGI_303);
+    tb3_cfg[0].mode = TB3_AICD;
+    tb3_cfg[0].join = 1;
+    tb3_cfg[0].mtype = 1;
+    tb3_cfg[0].mutate_bars = 1;
+    perf_line(t, 16, 0x5555u);
+    tb3_read(t->step, e);
+    for (p = 0; p < 8u && !tb3_rt[0].varied; p++) {
+        tb3_pass(t, 0);
+        if (!tb3_rt[0].varied)
+            tb3_pass(t, 0);
+    }
+    ok = tb3_rt[0].varied && !tb3_rt[0].want;
+    tb3_pass(t, 0);
+    tb3_read(t->step, b);
+    ok &= !memcmp(b, e, sizeof b);
+    bad += check("review: M.TYPE VARY works in AICD with JOIN on (the variation, then the line back)", ok);
+#endif
+
+    ui_power_on();                                  /* LINK's footer: NEW GROOVE only with drums to roll */
+    song.sel = 0;
+    set_engine_of(&trk[0], ENGI_303);
+    for (i = 1; i < NTRK; i++)
+        set_engine_of(&trk[i], 0);
+    ok = !tb3_groove_ok(0);
+    set_engine_of(&trk[2], ENGI_DRUM);
+    ok &= tb3_groove_ok(0) == DBRAIN_ON;
+    bad += check("review: LINK's OCT+ says NEW GROOVE only with a DRUM track (and DrumBrain built)", ok);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
-    int bad = pieces() + same_lines() + steps() + ui_tb3() + auto_mutate() + live() + project();
+    int bad = pieces() + same_lines() + steps() + ui_tb3() + auto_mutate() + live() + project() + fixes() + workflow() + acid() + aicd_shape() + perf() + linked() + review();
 #if AICD_ON
     bad += aicd_model(argc > 1 ? argv[1] : 0) + aicd_draws() + aicd_lines() + aicd_mut() + aicd_ui();
 #else

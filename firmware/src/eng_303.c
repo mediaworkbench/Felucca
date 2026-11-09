@@ -149,7 +149,8 @@ static void t303_block_f(track_t *t)
         s->slide = (uint8_t)x;
         bass303_set(b, BASS303_SLIDE, x);
     }
-    x = clamp((clamp(t->p[P_E0], 0, 127) << 8) + s->cm, 0, 127 << 8);
+    x = clamp((clamp(t->p[P_E0], 0, 127) << 8) + s->cm + tb3_tw[(uint32_t)(t - trk) % NTRK],   /* (TWIST: 0 as before) */
+              0, 127 << 8);
     if (x != s->cut) {
         s->cut = x;
         t303_cut(b, x);

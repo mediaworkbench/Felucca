@@ -431,10 +431,13 @@ static int page_visible(uint32_t i)
 {
     if (PAGES[i].graph == GR_DB1 || PAGES[i].graph == GR_DB2)   /* DrumBrain's: a DRUM track's, after its ARP and ARP 2 */
         return DBRAIN_ON && TSEL->eng_req % NENGINES == ENGI_DRUM;
+    if (PAGES[i].graph == GR_TB3SHP)                  /* SHAPE: MODE ACID's and AICD's */
+        return TSEL->eng_req % NENGINES == ENGI_303 && tb3_cfg[song.sel % NTRK].mode != TB3_TB3PO;
+    if (PAGES[i].graph == GR_TB3FRM || PAGES[i].graph == GR_TB3PLY || PAGES[i].graph == GR_TB3LNK)
+        return TSEL->eng_req % NENGINES == ENGI_303;  /* (a 303 track's, any MODE) */
     if (PAGES[i].fam == FAM_ARP)                      /* ARP: TB-3PO's pages on a 303 track, the arp's on another */
         return (PAGES[i].graph == GR_TB3GEN || PAGES[i].graph == GR_TB3SCL || PAGES[i].graph == GR_TB3MOD) ==
-                   (TSEL->eng_req % NENGINES == ENGI_303) && (PAGES[i].graph != GR_TB3MOD || AICD_ON);   /* (MODEL:
-                                                                                         * AICD's, FELUCCA_AICD) */
+                   (TSEL->eng_req % NENGINES == ENGI_303);
     if (PAGES[i].scope == SC_TRACK && PAGES[i].id[0] >= P_LN0 && PAGES[i].id[0] <= P_LN7)
         return TSEL->eng_req % NENGINES == ENGI_DRUM;
     if (PAGES[i].id[0] == P_FTYPE)                    /* FILTER (1.5, #104): ANALOG's */
@@ -878,7 +881,8 @@ static int seq_is_empty(const track_t *t)
  * takes the copy too (UNDO_MOT: SAVE held puts the track's motion back, the sound and the steps stay; motion_undo_take).
  * A sound load keeps the track's motion on the parameters every engine has (load_end, motion.c motion_sound_loaded);
  * a pattern load drops it all (the steps it was on are gone) */
-enum { UNDO_SOUND = 1, UNDO_PAT = 2, UNDO_MOT = 4, UNDO_DB = 8 };   /* (UNDO_DB: DrumBrain's OCT+ / OCT-, ui_dbrain.c) */
+enum { UNDO_SOUND = 1, UNDO_PAT = 2, UNDO_MOT = 4, UNDO_DB = 8, UNDO_TB3 = 16 };   /* (UNDO_DB, UNDO_TB3: DrumBrain's, TB-3PO's
+                                                                                  * OCT+ / OCT-, ui_dbrain.c, ui_tb3po.c) */
 static struct {
     uint8_t trk;                 /* track + 1, 0 = nothing to undo */
     uint8_t keep;                /* the track is as the last load left it (undo.after): a next load keeps the copy */
@@ -896,6 +900,9 @@ static struct {
     uint32_t t_ms;               /* time of the last load (the editor's SETs after it belong to it) */
     uint32_t db_seed;            /* UNDO_DB: the pattern's seed and TOM source, NEW's star (undo_swap) */
     uint8_t db_tom, db_stale;
+    uint32_t tb3_seed;           /* UNDO_TB3: the line's seed and number, NEW LINE's star (undo_swap) */
+    uint16_t tb3_line;
+    uint8_t tb3_stale;
 } undo __attribute__((section(".pool")));   /* (main loop only: off the audio code's .bss) */
 static uint8_t undo_depth;       /* loads nest (an engine jump loads its first preset): the outer one counts;
                                   * felucca_init / project_load raise it to take no copy at all */
@@ -994,6 +1001,8 @@ static void mom_back(const track_t *t)            /* a sound load into t (0: a p
 static void load_begin(track_t *t, uint32_t what)
 {
     uint32_t i = trk_index(t);
+    if (what & UNDO_PAT)
+        tb3_next[i].state = TB3Q_NONE;            /* (TB-3PO's line still waiting: this pattern instead) */
     if (what & UNDO_SOUND) {
         mom_back(t);                              /* (MOMENTARY: the sound as it was, then the load) */
         drum_mute[i] = 0;                         /* (1.4.1: the lanes' mutes go with the sound) */
@@ -1115,6 +1124,8 @@ static void undo_swap(void)
     }
     undo.motion_backup = current_motion;
     fm1_irq_off();                                /* the audio ISR must not see half a sound */
+    if (undo.what & UNDO_TB3)
+        tb3_next[trk_index(t)].state = TB3Q_NONE; /* (a line still waiting for its bar: taken back too) */
     if (undo.what & UNDO_SOUND) {
         uint8_t e = t->eng_req, pr = t->preset, u = t->user;
         panic_req |= (uint8_t)(1u << trk_index(t));
@@ -1176,6 +1187,17 @@ static void undo_swap(void)
         undo.db_seed = sd;
         undo.db_tom = tm;
         undo.db_stale = st;
+    }
+    if (undo.what & UNDO_TB3) {                   /* TB-3PO: the seed of the steps back, its star */
+        uint32_t tr = trk_index(t), sd = tb3_cfg[tr].seed;
+        uint16_t ln = tb3_cfg[tr].line;
+        uint8_t st = tb3_rt[tr].stale;
+        tb3_cfg[tr].seed = undo.tb3_seed;
+        tb3_cfg[tr].line = undo.tb3_line;
+        tb3_rt[tr].stale = undo.tb3_stale;
+        undo.tb3_seed = sd;
+        undo.tb3_line = ln;
+        undo.tb3_stale = st;
     }
     undo.keep = 0;                                /* the next load copies the track as it is now */
     if (t == TSEL)

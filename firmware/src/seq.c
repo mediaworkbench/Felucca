@@ -812,6 +812,15 @@ static __attribute__((noinline)) void kb_lat(uint32_t k)
 }
 #endif
 
+/* KEYS on a 303 track (tb3po.c tb3_key_in): the key's note to TB-3PO, silent. noinline: its divides off the audio ISR's
+ * key loop (tests/target_budget.py) */
+static __attribute__((noinline)) uint8_t tb3_keys_hit(uint32_t k, uint32_t cur)
+{
+    uint32_t n = kb_map(&trk[kb_trk[k] % NTRK], k);
+    if (n != KB_SILENT)
+        tb3_key_in(kb_trk[k] % NTRK, n, !(cur & ~(1u << k)));
+    return KB_SILENT;
+}
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch, k;
@@ -851,6 +860,8 @@ static void keyboard_block(void)
                 kb_note[k] = KB_SILENT;
             else if (song.grid == 1u)             /* the DRUM grid: a lane key plays its lane, the rest are the UI's */
                 kb_note[k] = grid_key_note(k);
+            else if (tb3_cfg[kb_trk[k] % NTRK].keys && trk[kb_trk[k] % NTRK].eng_req % NENGINES == ENGI_303)
+                kb_note[k] = tb3_keys_hit(k, cur);   /* KEYS: they set TB-3PO's ROOT / note pool, none sounds */
             else
                 kb_note[k] = (uint8_t)kb_map(&trk[kb_trk[k]], k);
             if (kb_note[k] == KB_SILENT)
@@ -1231,8 +1242,11 @@ static __attribute__((noinline)) void seq_enter(track_t *t, uint32_t top, uint32
 {
     if (!t->seq_idx)
         t->cond_loop = (uint8_t)(top || t->cond_loop + 1u >= COND_LOOPS ? 0u : t->cond_loop + 1u);
-    if (!(t->seq_idx & 15u) && t->eng_req % NENGINES == ENGI_303)
-        tb3_bar(t, top);                            /* TB-3PO: auto MUTATE before step 1, the live knobs at a bar */
+    if (t->eng_req % NENGINES == ENGI_303) {
+        if (!(t->seq_idx & 15u))
+            tb3_bar(t, top);                        /* TB-3PO: auto MUTATE before step 1, the live knobs at a bar */
+        tb3_twist(t, top);                          /* (TWIST's cutoff, this step's) */
+    }
     rec_hold(t, t->seq_idx, len);
 }
 

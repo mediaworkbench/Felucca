@@ -40,6 +40,20 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
   model's lines as they are while they are within a step or so of what they say (so TEMP stays in charge), and past it
   turn random steps on or off, only into steps the model has; 0 and 100 % are exact. OCT- draws a run of a quarter of the line
   (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
+  While playing, OCT+ and OCT- land on the next bar; each is one undo (SAVE held), the track's automation kept. MODEL also
+  has SEED (every line has a number, 1..9999, to dial it again), HIST (the last 8 lines) and KEEP (a new line keeps the
+  old notes or the old rhythm). MODE ACID is a third generator on TB-3PO's knobs: a small note pool (the root, the
+  fifth, then the scale's), each next note by its interval as often as in Aicd's corpus, rhythms from cells, accents in
+  runs, slides towards the root; SHAPE sets STYLE (ROLLING, STAB, HYPNOTIC, TRANCE, DUB), NOTES, RHYTHM (MODEL: Aicd's
+  rhythm under the pool's notes) and TIES, FORM the line's parts (AAAB, AABA, ABAC, CALL). In AICD, SHAPE has JOIN
+  (fewer pattern ends inside a line, a MUTATE that leads back into it) and BEST (the best of 2..8 draws). Every MODE:
+  FORM's FLAIR (ratchets, 4:4 pickups), TWIST (a cutoff arc over T.BARS bars); PLAY: MORPH (line A to line B; OCT+ a new
+  B, OCT- swaps them), SLIP and P.LEN (the notes against the rhythm, as a real 303's pitch and time lists), M.TYPE (auto
+  MUTATE: DRIFT, VARY for one pass, TURN the last 4 steps); LINK: POCKET (DODGE, LOCK, AFTER the first DRUM track's
+  kick; OCT+ here rolls the drums and the bass together), ANSWER (against the other 303 track: REST, 3RD, 5TH, OCT;
+  its rhythm wins over KEEP), ROOT< (the root follows a track's lowest note each bar; it wins over KEYS ROOT), KEYS
+  (the keys set ROOT or, in ACID, the note pool; silent). Scales
+  PDOM, BLUE, LOCR and DARK follow MAJ.
 
 - **DrumBrain, a pattern generator for DRUM tracks.** On a DRUM track ARP goes on, after ARP and ARP 2, to two pages with
   the model of [DrumBrain](https://github.com/mganss/DrumBrain) (Michael Ganss, MIT), trained on about 250 808 / 909

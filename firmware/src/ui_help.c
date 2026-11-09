@@ -52,13 +52,13 @@ static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"TOOLS", "[K1]CLEAR[K2]INIT, CLEAN[OCT+]DO"},   /* (1.5.5, #190: KNOB 2 on, CLEAN INIT) */
     {"ARP", "[K1]MODE[KEYS]CHORD[ARP]ARP 2"},
     {"ARP 2", "[K3]HOLD[K4]ORDER[ARP]ARP"},   /* (1.8: as its card) */
-    {"GENERATE", "[K1-4]NEXT LINE[ARP]SCALE"},   /* TB-3PO, a 303 track's ARP (ui_tb3po.c) */
-#if AICD_ON
+    {"GENERATE", "[K1-4]THE LINE[ARP]SCALE"},   /* TB-3PO, a 303 track's ARP (ui_tb3po.c) */
     {"SCALE", "[K4]AUTO MUTATE[ARP]MODEL"},
-#else
-    {"SCALE", "[K4]AUTO MUTATE[ARP]GENERATE"},   /* (no MODEL page without FELUCCA_AICD) */
-#endif
-    {"MODEL", "[K1]TB-3PO, AICD[ARP]GENERATE"},   /* (1.6.2: AICD, Aicd's model) */
+    {"MODEL", "[K2]SEED[K3]HISTORY[ARP]NEXT"},   /* (the lines by number, the last 8) */
+    {"SHAPE", "[K1-4]THE NEXT LINE[ARP]NEXT"},    /* MODE ACID, AICD */
+    {"FORM", "[K2]FLAIR[K3]TWIST[ARP]PLAY"},
+    {"PLAY", "[K1]MORPH[K2]SLIP[ARP]LINK"},
+    {"LINK", "[K1]POCKET[K3]ROOT<[ARP]GENERATE"},
     {"BRAIN", "[K1]STYLE[K3]DENS[ARP]BRAIN 2"},   /* DrumBrain, a DRUM track's ARP (ui_dbrain.c) */
     {"BRAIN 2", "[K1]LANES[K2]BARS[ARP]ARP"},
     {"STEP", "[REC]WRITE[K1]STEP[SEQ]DETAIL"},   /* (1.5.1: SEQ to DETAIL; 1.8: the keys write once armed) */

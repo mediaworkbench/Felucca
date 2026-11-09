@@ -16,7 +16,7 @@
 
 #define SECS 3u
 
-typedef struct { const char *name; uint8_t eng[NPART], pre[NPART]; uint8_t morph; } scen_t;
+typedef struct { const char *name; uint8_t eng[NPART], pre[NPART]; uint8_t morph, twist; } scen_t;
 
 static int32_t peak[NPART];                         /* each part's loudest (track_t.peak), for the check */
 
@@ -78,6 +78,9 @@ static uint64_t render(const scen_t *sc, int dual, const char *mask)
         }
         if (sc->morph && ms == 600u)                /* PHYS: MODEL changed under a sounding note (phys_render) */
             trk[0].p[P_E0] = (int16_t)((trk[0].p[P_E0] + 1) % PM_COUNT);
+        if (sc->twist)                              /* TWIST (tb3po.c tb3_twist): the cutoff offset, written before the block as seq_enter does */
+            for (k = 0; k < NPART; k++)
+                tb3_tw[k] = (int16_t)((ms * 37u + k * 2500u) % 10240u);
         mix_block(o, CTL);
         for (k = 0; k < NPART; k++)
             if (trk[k].peak > peak[k])
@@ -141,6 +144,7 @@ int main(void)
     sc[n++] = (scen_t){"GRAIN NOISE VOICE LOFI", {8, 11, 5, 3}, {1, 4, 7, 10}, 0};
     sc[n++] = (scen_t){"TRIO WHEEL PHASE FM6", {6, 7, 2, ENGI_FM6}, {1, 4, 7, 10}, 0};
     sc[n++] = (scen_t){"PHYS morph + DRUM GRAIN ANALOG", {ENGI_PHYS, ENGI_DRUM, 8, 0}, {2, 1, 3, 5}, 1};
+    sc[n++] = (scen_t){"4 x 303 TWIST", {ENGI_303, ENGI_303, ENGI_303, ENGI_303}, {0, 3, 5, 9}, 0, 1};
 #if FELUCCA_SLICE
     sc[n++] = (scen_t){"SAMPLE SLICE GRAIN PHASE", {ENGI_SAMPLE, 13, 8, 2}, {2, 1, 3, 5}, 0};
     sc[n++] = (scen_t){"SLICE FM6 SAMPLE DRUM", {13, ENGI_FM6, ENGI_SAMPLE, ENGI_DRUM}, {0, 2, 3, 4}, 0};

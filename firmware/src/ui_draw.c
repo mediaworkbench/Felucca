@@ -885,8 +885,10 @@ static void draw_foot(void)
         help_row(help, 2);
     } else if (tb3_on()) {                            /* row 1: TB-3PO's OCT+ / OCT- (ui_tb3po.c); the star: the knobs */
         khint_t kh[2];                                /* no longer match the line */
-        kh[0] = (khint_t){KC_OCTUP, tb3_rt[song.sel % NTRK].stale ? "NEW LINE *" : "NEW LINE"};
-        kh[1] = (khint_t){KC_OCTDN, "MUTATE"};
+        uint32_t g = cur_page()->graph;               /* (PLAY: line B; LINK: the drums too, if there are) */
+        kh[0] = (khint_t){KC_OCTUP, g == GR_TB3PLY ? "NEW B" : g == GR_TB3LNK && tb3_groove_ok(song.sel % NTRK) ? "NEW GROOVE"
+                                    : tb3_rt[song.sel % NTRK].stale ? "NEW LINE *" : "NEW LINE"};
+        kh[1] = (khint_t){KC_OCTDN, g == GR_TB3PLY ? "A<>B" : "MUTATE"};
         cv_key_row(8, 232, 2, kh, 2, chain_busy() ? 0u : 3u, T_BG);
     } else if (db_on()) {                             /* row 1: DrumBrain's OCT+ / OCT- (ui_dbrain.c) */
         khint_t kh[2];

@@ -274,17 +274,25 @@ static void graph_tb3(const track_t *t, uint16_t c)
     char b[16];
     cv_oy = 0;
     b[0] = 0;
-    if (g->mode == TB3_AICD)
-        str_cpy(b, "AICD ", sizeof b);
+    if (g->mode)
+        str_cpy(b, g->mode == TB3_AICD ? "AICD " : "ACID ", sizeof b);
     str_cpy(b + str_len(b), N_NOTE[g->root % 12u], 4);
     str_cpy(b + str_len(b), " ", 2);
     str_cpy(b + str_len(b), g->mode == TB3_AICD ? TB3_ASCALE_NAMES[g->a_scale % (TB3_NSCALES + 1u)]
                                                 : TB3_SCALE_NAMES[g->scale % TB3_NSCALES], 6);
     cv_text(TB3_X0, 4, &AF_S, b, T_MID);
-    str_cpy(b, "SEED ", sizeof b);
-    for (j = 0; j < 4u; j++)
-        b[5u + j] = HEX[(g->seed >> (12u - 4u * j)) & 15u];
-    b[9] = 0;
+    if (g->line) {                                    /* "LINE 4711": dial it again on MODEL's SEED */
+        uint32_t v = g->line, d = v >= 1000u ? 4u : v >= 100u ? 3u : v >= 10u ? 2u : 1u;
+        str_cpy(b, "LINE ", sizeof b);
+        b[5u + d] = 0;
+        for (j = d; j--; v /= 10u)
+            b[5u + j] = (char)('0' + v % 10u);
+    } else {                                          /* (a project's line from before numbers) */
+        str_cpy(b, "SEED ", sizeof b);
+        for (j = 0; j < 4u; j++)
+            b[5u + j] = HEX[(g->seed >> (12u - 4u * j)) & 15u];
+        b[9] = 0;
+    }
     cv_text_r(TB3_X0 + TB3_W, 4, &AF_S, b, T_MID, T_SURF);
     for (i = 0; i < len; i++)                         /* the notes' range (a REST's kept note left out) */
         if (s[i].time != ST_REST && s[i].n) {
@@ -317,8 +325,9 @@ static void graph_tb3(const track_t *t, uint16_t c)
             cv_rect(x + 1, y, w > 2 ? w - 1 : 1, 6, T_TEXT);
         else
             cv_rect(st->time == ST_TIE ? x : x + 1, y + 1, w > 2 ? w - (st->time == ST_TIE ? 0 : 1) : 1, 4, c);
-        if ((st->flags & SF_SLIDE) && i + 1u < len && s[i + 1u].time == ST_NOTE && s[i + 1u].n) {
-            uint32_t m = s[i + 1u].note[0] & 127u;
+        j = (i + 1u) % len;                           /* (the slide over the loop's end too; into a TIE: on its note) */
+        if ((st->flags & SF_SLIDE) && (s[j].time == ST_TIE || (s[j].time == ST_NOTE && s[j].n))) {
+            uint32_t m = s[j].time == ST_TIE ? n : s[j].note[0] & 127u;
             int32_t ny = TB3_Y0 + (int32_t)(hi - (m > hi ? hi : m < lo ? lo : m)) * (TB3_H - 6) / span;
             cv_line(x + w - 1, y + 3, x + w + 1, ny + 3, T_TEXT);   /* the slide into the next note */
         }
@@ -1323,7 +1332,7 @@ static uint32_t graph_signature(void)
     }
     if (pg->graph == GR_MOD)
         h ^= (mod_ui_slot + 1u) * 40503u;
-    if (pg->graph == GR_TB3GEN || pg->graph == GR_TB3SCL || pg->graph == GR_TB3MOD) {   /* TB-3PO: the line, its
+    if (pg->graph >= GR_TB3GEN && pg->graph <= GR_TB3LNK) {   /* TB-3PO: the line, its
                                                                                          * settings, the step playing */
         const tb3_cfg_t *g = &tb3_cfg[trk_index(t)];
         h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u + g->seed * 2654435761u + tb3_auto_n * 7919u;
@@ -2464,6 +2473,10 @@ static void draw_graph(void)
         case GR_TB3GEN:
         case GR_TB3SCL:
         case GR_TB3MOD:
+        case GR_TB3SHP:
+        case GR_TB3FRM:
+        case GR_TB3PLY:
+        case GR_TB3LNK:
             graph_tb3(t, c);                         /* (ARP on a 303 track: TB-3PO's line) */
             break;
         case GR_DB1:

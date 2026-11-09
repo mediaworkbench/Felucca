@@ -11,6 +11,8 @@
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPART 4                  /* synth parts: tracks 1..4 */
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
+static int16_t tb3_tw[NTRK];     /* TWIST (tb3po.c tb3_twist): each 303 track's cutoff offset (eng_303.c), 1/256 of a
+                                  * CUT step; 0 unless on and playing */
 #define NSTEP 64
 #define HALF_FRAMES 128          /* I2S half buffer: 2.9 ms at 44.1 kHz (a key waits 0..1 half, then plays 1 half later) */
 #ifndef FELUCCA_SLICE
@@ -61,7 +63,7 @@
 #define ENGI_303 15u             /* reserved with FELUCCA_303=0 (and FELUCCA_FM4), as SLICE */
 #define T303_ON (FELUCCA_303 && !FELUCCA_FM4)   /* the 303 can be picked */
 #ifndef FELUCCA_AICD
-#define FELUCCA_AICD 1           /* TB-3PO's AICD mode (tb3po.c): Aicd's acid line model, ~21 KB of flash (build/gen
+#define FELUCCA_AICD 1           /* TB-3PO's AICD mode (tb3po.c): Aicd's acid line model, ~24 KB of flash (build/gen
                                   * felucca_aicd.h, tools/gen_aicd.py); 0: TB-3PO's own lines only */
 #endif
 #define AICD_ON (FELUCCA_AICD && T303_ON)

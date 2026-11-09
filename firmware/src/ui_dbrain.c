@@ -113,6 +113,27 @@ static void db_write(track_t *t, const db_pat_t *p, uint32_t mask)
     }
 }
 
+/* TB-3PO's LINK OCT+ (ui_tb3po.c tb3_oct): a new pattern on DRUM track t, its lanes as LANES says; no undo of its own
+ * (the undo is the 303 track's, one track's); 0: no DrumBrain built */
+static int db_groove(track_t *t, uint32_t entropy)
+{
+#if DBRAIN_ON
+    uint32_t k = trk_index(t), len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), r;
+    uint64_t was;
+    db_pat_t p;
+    r = db_start(&db_cfg[k], 1, entropy);
+    db_line(t, 0, &r, &p);
+    was = tl_used(t, len);
+    db_write(t, &p, DB_LANE_MASK[db_cfg[k].lanes % DB_NLANES]);
+    tl_unlock(t, was, len);
+    db_stale[k] = 0;
+    return 1;
+#else
+    (void)t, (void)entropy;
+    return 0;
+#endif
+}
+
 /* OCT+ (oct bit 1): a new pattern, a new seed; OCT- (bit 0): a VARY */
 static void db_oct(uint32_t oct)
 {
