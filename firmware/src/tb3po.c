@@ -1007,7 +1007,7 @@ static void tb3_slip(tb3_step_t *b, uint32_t len, uint32_t slip, uint32_t plen)
         if ((b[i].flags & TB3_GATE) == TB3_NOTE)
             b[i].note = list[(j++ % m + slip) % n];
 }
-/* POCKET against kick (bit i: step i): DODGE no note on a kick, LOCK a note on each, ANSWER none on a kick and one
+/* POCKET against kick (bit i: step i): DODGE no note on a kick, LOCK a note on each, AFTER none on a kick and one
  * just after it */
 static void tb3_pocket(tb3_step_t *b, uint32_t len, uint32_t mode, uint64_t kick)
 {

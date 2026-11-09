@@ -276,7 +276,7 @@ static void graph_tb3(const track_t *t, uint16_t c)
     b[0] = 0;
     if (g->mode)
         str_cpy(b, g->mode == TB3_AICD ? "AICD " : "ACID ", sizeof b);
-    str_cpy(b + str_len(b), N_NOTE[g->root % 12u], 4);
+    str_cpy(b + str_len(b), N_NOTE[tb3_knobs(g).root % 12u], 4);   /* (ROOT< following: the root it follows) */
     str_cpy(b + str_len(b), " ", 2);
     str_cpy(b + str_len(b), g->mode == TB3_AICD ? TB3_ASCALE_NAMES[g->a_scale % (TB3_NSCALES + 1u)]
                                                 : TB3_SCALE_NAMES[g->scale % TB3_NSCALES], 6);

@@ -117,7 +117,7 @@ next OCT+ / OCT-: the footer's NEW LINE gets a star until you press it.
 | Knob | What it does |
 |---|---|
 | MODE | next. TB-3PO, AICD or ACID. |
-| SEED | The line's number, 1..9999. Turn it to dial any line; note the number of one you like to get it back later. |
+| SEED | The line's number, 1..9999 (0: a line without one). Turn it to dial any line; note the number of one you like to get it back later. The same number gives the same line with the same settings (MODE, SHAPE, KEEP and ANSWER included). |
 | HIST | Steps back through the last 8 lines (0 = the current one). Not saved with the project. |
 | KEEP | For OCT+: OFF, NOTES (the new line plays the old notes in a new rhythm) or RHYTHM (new notes over the old rhythm). |
 
@@ -184,7 +184,7 @@ same time ("NEW GROOVE"). SAVE held then undoes the bass only.
   DrumBrain (`FELUCCA_DBRAIN`, on by default).
 - SLIP, P.LEN and POCKET work on the line as it is. After a MUTATE or a hand edit, turning them back does not always
   restore the line exactly.
-- Undo does not cover line B or the drums from LINK's OCT+.
+- Undo does not cover the drums from LINK's OCT+.
 - Older firmware loads a project with ACID as AICD and ignores the new settings.
 
 ## AI disclaimer

@@ -900,7 +900,7 @@ static struct {
     uint32_t t_ms;               /* time of the last load (the editor's SETs after it belong to it) */
     uint32_t db_seed;            /* UNDO_DB: the pattern's seed and TOM source, NEW's star (undo_swap) */
     uint8_t db_tom, db_stale;
-    uint32_t tb3_seed;           /* UNDO_TB3: the line's seed and number, NEW LINE's star (undo_swap) */
+    uint32_t tb3_seed, tb3_seed_b;   /* UNDO_TB3: the line's seed, line B's (MORPH), its number, NEW LINE's star (undo_swap) */
     uint16_t tb3_line;
     uint8_t tb3_stale;
 } undo __attribute__((section(".pool")));   /* (main loop only: off the audio code's .bss) */
@@ -1189,13 +1189,16 @@ static void undo_swap(void)
         undo.db_stale = st;
     }
     if (undo.what & UNDO_TB3) {                   /* TB-3PO: the seed of the steps back, its star */
-        uint32_t tr = trk_index(t), sd = tb3_cfg[tr].seed;
+        uint32_t tr = trk_index(t), sd = tb3_cfg[tr].seed, sb = tb3_cfg[tr].seed_b;
         uint16_t ln = tb3_cfg[tr].line;
         uint8_t st = tb3_rt[tr].stale;
         tb3_cfg[tr].seed = undo.tb3_seed;
+        tb3_cfg[tr].seed_b = undo.tb3_seed_b;
+        tb3_rt[tr].bok = 0;                       /* (line B drawn again from its seed: A<>B undone too) */
         tb3_cfg[tr].line = undo.tb3_line;
         tb3_rt[tr].stale = undo.tb3_stale;
         undo.tb3_seed = sd;
+        undo.tb3_seed_b = sb;
         undo.tb3_line = ln;
         undo.tb3_stale = st;
     }

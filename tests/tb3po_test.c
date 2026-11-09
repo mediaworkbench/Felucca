@@ -2411,6 +2411,61 @@ static int review(void)
     set_engine_of(&trk[2], ENGI_DRUM);
     ok &= tb3_groove_ok(0) == DBRAIN_ON;
     bad += check("review: LINK's OCT+ says NEW GROOVE only with a DRUM track (and DrumBrain built)", ok);
+
+    ui_power_on();                                  /* (2nd pass) a line waiting at STOP lands while the menu is open */
+    t = TSEL;
+    set_engine(ENGI_303);
+    perf_line(t, 16, 0x3131u);
+    song.playing = 1;
+    press(B_ARP);
+    press(B_OCTUP);
+    ok = tb3_next[0].state == TB3Q_READY;
+    song.playing = 0;
+    ui.menu = 1;
+    frame();
+    ok &= tb3_next[0].state == TB3Q_NONE && line_is(t, &tb3_cfg[0]);
+    ui.menu = 0;
+    bad += check("review: a line waiting when the transport stops is written even with the menu open", ok);
+
+    ui_power_on();                                  /* (2nd pass) undo after A<>B: line B back from its seed */
+    t = TSEL;
+    set_engine(ENGI_303);
+    perf_line(t, 16, 0x4444u);
+    while (cur_page()->graph != GR_TB3PLY)
+        press(B_ARP);
+    press(B_OCTUP);                                 /* a line B */
+    frame();
+    {
+        uint32_t sa = tb3_cfg[0].seed, sb = tb3_cfg[0].seed_b;
+        tb3_step_t lb[NSTEP], la[NSTEP];
+        memcpy(lb, tb3_b[0], sizeof lb);
+        tb3_read(t->step, la);
+        press(B_OCTDN);                             /* A <> B */
+        frame();
+        ok = tb3_cfg[0].seed == sb && tb3_cfg[0].seed_b == sa;
+        undo_swap();
+        frame();
+        tb3_read(t->step, b);
+        ok &= tb3_cfg[0].seed == sa && tb3_cfg[0].seed_b == sb && !memcmp(b, la, sizeof b);
+        tb3_cfg[0].morph = 1;                       /* (B is drawn again on demand: the main loop) */
+        tb3_poll();
+        ok &= tb3_rt[0].bok && !memcmp(tb3_b[0], lb, sizeof lb);
+    }
+    bad += check("review: undo after A<>B brings back line A and line B (from its seed)", ok);
+
+    ui_power_on();                                  /* (2nd pass) SEED: 0 is no number; turning down to it dials nothing */
+    t = TSEL;
+    set_engine(ENGI_303);
+    perf_line(t, 16, 0x7070u);
+    tb3_cfg[0].line = 1;
+    press(B_ARP);
+    press(B_ARP);
+    press(B_ARP);
+    tb3_read(t->step, e);
+    turn(EN_K2, -1);
+    tb3_read(t->step, b);
+    ok = cur_page()->graph == GR_TB3MOD && tb3_cfg[0].line == 1u && !memcmp(b, e, sizeof b);
+    bad += check("review: SEED shows 0 for a line without a number; turning to 0 dials nothing", ok);
     return bad;
 }
 

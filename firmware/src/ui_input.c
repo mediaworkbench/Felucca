@@ -1548,6 +1548,8 @@ static void ui_input(void)
         usb_serial_apply();                             /* (MENU > USB SERIAL: when the menu has closed) */
     settings_later_poll();                              /* (#197: LIST / FAV written once the view is left or idle) */
     follow_poll();                                      /* (1.6, #242: SEQ's roll follows the play position) */
+    tb3_poll();                                         /* (TB-3PO: a waiting line, JOIN's MUTATE, POCKET, TWIST:
+                                                         * also while the menu, NAME, a dialog or SCREEN OFF is up) */
     if (scr_input(pressed, notes))                      /* MENU > SCREEN OFF: dark, or the wake gesture: swallowed */
         return;                                         /* (before the buttons' timers: no tap or hold after it) */
     if (mom.n && !mom_down()) {                         /* MOMENTARY: LFO let go (or the menu, a layer ..): back */
@@ -1797,7 +1799,6 @@ static void ui_input(void)
         db_oct(oct);
     }
     song.grid = (uint8_t)keys_mode();                 /* (seq.c: the keys are the grid's) */
-    tb3_poll();
 #if FELUCCA_SLICE
     if (notes && slice_page_on())                       /* SLICES: a key picks the slice it plays */
         slice_keys_pick(notes);

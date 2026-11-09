@@ -51,7 +51,7 @@ static const param_desc_t TB3_DESC[TB3_NK] = {   /* X0X's ranges and defaults (t
     {"ACCENT", F_INT, 0, 100, AICD_ACC, 0, "%"},
     {"SLIDE", F_INT, 0, 100, AICD_SLD, 0, "%"},
     {"SCALE", F_ENUM, 0, TB3_NSCALES, 0, TB3_ASCALE_NAMES, 0},
-    {"SEED", F_INT, 1, 9999, 1, 0, 0},
+    {"SEED", F_INT, 0, 9999, 0, 0, 0},                  /* (0: a line without a number, X0X's seed BEEF too) */
     {"HIST", F_INT, 0, TB3_NHIST - 1, 0, 0, 0},
     {"KEEP", F_ENUM, 0, 2, 0, N_TB3_KEEP, 0},
     {"STYLE", F_ENUM, 0, ACID_NSTYLE - 1, 0, N_TB3_STYLE, 0},
@@ -230,6 +230,8 @@ static void tb3_emit(track_t *t, const tb3_step_t *line, int fresh)
     }
     fm1_irq_off();
     tb3_anchor(k, t->step, fresh);
+    if (tb3_rt[k].pending && !chain_busy())
+        tb3_live(t);                                   /* (MORPH POCKET SLIP still to come: at once, as a knob's) */
     fm1_irq_on();
     sync_reload = 1;                                   /* (the editor reads the steps again) */
     ui.force = 1;
@@ -249,6 +251,7 @@ static int tb3_undo(track_t *t, int gesture)         /* 1: a copy taken, a new a
     tl_undo_take(t);
     undo.what |= UNDO_TB3;
     undo.tb3_seed = tb3_cfg[k].seed;
+    undo.tb3_seed_b = tb3_cfg[k].seed_b;
     undo.tb3_line = tb3_cfg[k].line;
     undo.tb3_stale = tb3_rt[k].stale;
     return 1;
@@ -435,6 +438,8 @@ static void tb3_knob(uint32_t slot, int32_t steps)   /* (ui_input.c edit_param) 
             }
             return;
         }
+        if (!n)                                        /* (back to 0: no line has that number) */
+            return;
         tb3_begin(&trk[tr], 1);
         tb3_set(&tb3_cfg[tr], k, n);
         tb3_cfg[tr].seed = tb3_line_seed(tb3_cfg[tr].line);
