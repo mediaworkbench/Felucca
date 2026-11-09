@@ -209,21 +209,38 @@ static voice_t *voice_reuse(track_t *t, voice_t *v)
  * Else a free voice: ROTATE takes
  * the next one round-robin (release tails ring out), REUSE (or any GLIDE) takes
  * the free voice whose last pitch is closest, so poly portamento moves each
- * voice the shortest way. Steal: the oldest released voice, else the oldest
+ * voice the shortest way. POLY2 (the Juno-106's POLY II, after fm-106 e3f04d8; not for an
+ * engine of hits): a note after every key is up cuts the part's release tails (poly2_cut),
+ * and the first voice that is not held takes it, from voice 0 up (a tail there restarts in
+ * place). Steal: the oldest released voice, else the oldest
  * held one, never the lowest held note (the bass). A free voice needs room in the
  * shared budget: when the voice to give up is one of this part's, it is restarted
  * in place instead. */
+static void poly2_cut(track_t *t)                       /* (a pedal keeps its notes' gates: they count as held) */
+{
+    uint32_t i;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].gate)
+            return;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].active)
+            t->v[i].stage = 4;                          /* fades over the next block, as voice_kill's */
+}
+
 static voice_t *voice_alloc(track_t *t, uint32_t note)
 {
     uint32_t i, np = trk_nvoice(t), best = np, low = np, nfree = 0;
     int32_t bd = 0x7FFFFFFF;
+    int poly2 = t->p[P_ALLOC] == 2 && !ENGINES[t->engine]->oneshot;
     if (t->engine == ENGI_DRUM) {
         voice_t *v = drum_reuse(t, note);
         if (v)
             return voice_reuse(t, v);
     }
+    if (poly2)
+        poly2_cut(t);
     for (i = 0; i < np; i++) {
-        if (t->v[i].active && t->v[i].note == note)
+        if (t->v[i].active && t->v[i].note == note && !(poly2 && t->v[i].stage == 4u))
             return voice_reuse(t, &t->v[i]);
         nfree += !t->v[i].active;
     }
@@ -235,7 +252,13 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
         if (k < NVOICE)
             voice_kill(&vp->v[k]);
     }
-    if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
+    if (poly2) {
+        for (i = 0; i < np && best == np; i++)
+            if (!t->v[i].gate)
+                best = i;
+        if (best < np)
+            return t->v[best].active ? voice_reuse(t, &t->v[best]) : &t->v[best];
+    } else if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
         for (i = 0; i < np; i++) {
             int32_t d = t->v[i].pitch_cur - (int32_t)note * 16;
             if (t->v[i].active)

@@ -170,8 +170,8 @@
 #                   register clock following the key, META periodic at the key, no DC, no clipping at the
 #                   corners, a note from silence the same twice, the cost per voice; demos in build/noise_demo/.
 # DCO (tests/dco_test.c): the Juno-106 voice after fm-106 / KR-106 (src/eng_dco.c, src/dco_dsp.c): pitch of every WAVE
-#                   and RANGE and the SUB, no DC, bounded at the corners, a resonance ringing by itself, the HPF's four
-#                   positions, KEY tracking, a click-free retrigger, the 4-voice cap, UNISON's phases, the same state the
+#                   and RANGE and the SUB, no DC, bounded at the corners, a resonance ringing by itself, no noise below RES 120,
+#                   the HPF's four positions, KEY tracking, a click-free retrigger, the 4-voice cap, UNISON's phases, ALLOC POLY2, the same state the
 #                   same samples, the cost per voice; demos in build/dco_demo/.
 # 303 (tests/t303_test.c): X0X's Open303 (src/eng_303.c, src/x0x/: X0X's files, their hashes): the engine's block sample
 #                   for sample X0X's bass303 (notes, accents, MONO's SLIDE steps, LEGATO's overlapping keys, releases, a

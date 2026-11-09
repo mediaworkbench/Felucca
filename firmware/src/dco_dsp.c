@@ -9,8 +9,8 @@
  *        sub (a flip-flop on the phase's wrap), polyBLEP at both edges; noise through a 5.3 kHz one-pole
  *   VCF  the IR3109 4-pole OTA ladder: four TPT one-poles, the BA662 pair's feedback through a saturation, the
  *        cutoff a 14-bit DAC code as the D7811G computes it (cutoff + modulation + key), its gain from the
- *        measured voice card profile (dco_tables.h DCO_VCF_G1); a little noise in silence so a pure resonance
- *        starts on its own (fm-106's adaptive thermal noise)
+ *        measured voice card profile (dco_tables.h DCO_VCF_G1); a little noise near silence at RES 120 and up, so a
+ *        pure resonance starts on its own (fm-106's adaptive thermal noise, its gate as at 68734c9: eng_dco.c dco_render)
  *   HPF  the 4-position switch: 0 a bass boost shelf (+10.5 dB), 1 flat, 2 236 Hz, 3 754 Hz (one-pole); linear, so
  *        per voice here as after the voices on the instrument
  * Differences from fm-106 (the cost on one core): the VCF's coefficients (and its one divide), the DAC code and the

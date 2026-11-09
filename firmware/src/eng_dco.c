@@ -87,7 +87,7 @@ static void dco_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     uint32_t inc = m->inc, ph = v->ph[0], sub = v->ph[1] & 1u, i, epw;
     uint32_t wave = (uint32_t)clamp(p[P_E0], 0, 3), hpf = (uint32_t)clamp(p[P_E7], 0, 3);
     int32_t z[4], s1 = v->s[4], s2 = (int32_t)v->ph[2], dco = v->s[5], dcv = v->s[6], nlp = v->s[7], nst = DCO_NZ(t);
-    int32_t pw, pdc, subg, noig, key, dac, e, inj = 0, rg = clamp(p[P_DRNG], 0, 8) % 3;   /* (3..8: the VCA's, dco_amp) */
+    int32_t pw, pdc, subg, noig, key, dac, inj = 0, rg = clamp(p[P_DRNG], 0, 8) % 3;   /* (3..8: the VCA's, dco_amp) */
     dco_vcf_t c;
     if (rg == 0)                                         /* RANGE 16' */
         inc >>= 1;
@@ -107,9 +107,13 @@ static void dco_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     key = (clamp(p[P_E6], 0, 127) * 2 * (key < 0 ? -key : key) >> 8) * (key < 0 ? -1 : 1);
     dac = (clamp(p[P_E4], 0, 127) << 7) + m->cutoff + key;
     dco_vcf_coef(&c, dac, p[P_E5]);
-    e = (z[0] < 0 ? -z[0] : z[0]) + (z[1] < 0 ? -z[1] : z[1]) + (z[2] < 0 ? -z[2] : z[2]) + (z[3] < 0 ? -z[3] : z[3]);
-    if ((e >> 9) < 50)                                   /* near silence: the thermal noise that starts a resonance */
-        inj = 327 / (1 + (e >> 11));
+    if (p[P_E5] >= 120) {                                /* near silence: the thermal noise that starts a resonance, */
+        int32_t e = (z[0] < 0 ? -z[0] : z[0]) + (z[1] < 0 ? -z[1] : z[1]) + (z[2] < 0 ? -z[2] : z[2]) + (z[3] < 0 ? -z[3] : z[3]);
+        if ((e >> 9) < 50)                               /* only where it can ring, so no noise floor below (fm-106
+                                                          * 68734c9's gate; not its 1 LSB level, which this loop's
+                                                          * 32-bit truncation swallows: the ring would not start) */
+            inj = 327 / (1 + (e >> 11));
+    }
 
     for (i = 0; i < n; i++) {
         uint32_t prev = ph;

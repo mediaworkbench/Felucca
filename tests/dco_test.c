@@ -7,7 +7,8 @@
  * 3. bounded: the corners of WAVE, CUT, RES, KEY, SUB, NOIS and HPF, 6 notes from C1 to C6 (DCO_POLY sound) at velocity
  *    127, LEVEL 127: no
  *    voice sum beyond 2 x VOICE_FS a voice and no mix sample at full scale.
- * 4. a resonance alone (no wave, sub or noise, RES 127) starts ringing by itself, and stays bounded.
+ * 4. a resonance alone (no wave, sub or noise, RES 127) starts ringing by itself, and stays bounded; it also starts
+ *    from the thermal noise alone (no note-on seed); below RES 120 a voice with nothing to play is exactly silent.
  * 5. the HPF: a 55 Hz saw's fundamental, against FLAT: BOOST +5 .. +12 dB, 236 Hz and 754 Hz down (754 by > 15 dB).
  * 6. KEY: with KEY 127 the spectral centroid follows the key (an octave up: x 1.5 at least), with KEY 0 less so.
  * 7. a retrigger of a sounding voice does not click: no step in a closed-filter tone beyond 1.5 x its own slope.
@@ -16,6 +17,8 @@
  *    at once after the release, the pitch of its RANGE.
  * 8c. VCA ADSR (RANGE 6..8): the VCA's own envelope against ENV, the voice kept by a longer release and then ended, no
  *    click at its edges, a retrigger or a switch under a held note, a voice given up ends, the pitch of its RANGE.
+ * 8d. ALLOC POLY2: voices from 0 up, the tails cut only by a note after every key is up (no click, not another part's),
+ *    a released note retriggers its voice while a key is held, the steal, ROT keeps its tails.
  * 9. determinism: the same state (the tracks, the noise seeds) renders the same samples again (every preset).
  * 10. cost: host instructions per sample per voice (6 notes held, the idle mix taken off) for every preset and the
  *     heaviest corner; fails above DCO_COST_MAX (device estimate 1.7 % per 100, as drum_test's).
@@ -283,6 +286,39 @@ static void resonance(void)
     snprintf(what, sizeof what, "a resonance alone (RES 127, no wave) rings by itself: RMS %.1f dB, peak %.2f", 20 * log10(r + 1e-12),
              peak * 32768.0 / VOICE_FS);
     check(what, 20 * log10(r + 1e-12) > -40 && peak * 32768.0 < 2.0 * VOICE_FS);
+}
+
+/* the thermal noise (fm-106 68734c9): RES 120 and up, near silence, one LSB */
+static void thermal(void)
+{
+    static const int16_t E[8] = {0, 0, 0, 0, 64, 127, 64, 1};
+    static int32_t b[CTL];
+    double peak = 0, late = 0;
+    uint32_t i, k;
+    int32_t any = 0;
+    char what[160];
+    setup(E, 1);
+    trk_note_on(&trk[0], 60, 100);
+    trk[0].v[0].s[0] = 0;                               /* no seed: the noise alone must start it */
+    for (i = 0; i < 2u * FS / CTL; i++) {
+        track_render(&trk[0], b, CTL);
+        for (k = 0; k < CTL; k++) {
+            peak = fabs((double)b[k]) > peak ? fabs((double)b[k]) : peak;
+            if (i > FS / CTL)
+                late = fabs((double)b[k]) > late ? fabs((double)b[k]) : late;
+        }
+    }
+    snprintf(what, sizeof what, "RES 127, no wave, no seed: the thermal noise starts the ring (peak %.0f, in the 2nd second %.0f)", peak, late);
+    check(what, late > 500 && peak < 2.0 * VOICE_FS);
+    setup(E, 1);
+    trk[0].p[P_E5] = 64;
+    trk_note_on(&trk[0], 60, 100);
+    for (i = 0; i < FS / CTL; i++) {
+        track_render(&trk[0], b, CTL);
+        for (k = 0; k < CTL; k++)
+            any |= b[k];
+    }
+    check("RES 64, nothing to play: exactly silent (no noise floor)", !any);
 }
 
 static double PS[NFFT / 2];
@@ -609,6 +645,91 @@ static void voices(void)
     check("UNISON: its voices start at different phases", !same);
 }
 
+/* ALLOC POLY2 (voice.c voice_alloc, poly2_cut) */
+static void poly2(void)
+{
+    static const int16_t E[8] = {2, 0, 0, 0, 40, 0, 64, 1};
+    static int32_t y[CTL * 80];
+    static int32_t b[CTL];
+    voice_t *v = trk[0].v;
+    uint32_t i, k, n = 0;
+    int32_t slope = 0, peak = 0, step = 0;
+    char what[200];
+#define P2_RUN(nb) do { uint32_t b_; for (b_ = 0; b_ < (nb); b_++) { track_render(&trk[0], b, CTL); \
+        for (k = 0; k < CTL && n < NELEM(y); k++) y[n++] = b[k]; } } while (0)
+    setup(E, 1);
+    trk[0].p[P_ALLOC] = 2;
+    trk[0].p[P_REL] = 110;
+    trk[0].p[P_ATK] = 70;
+    trk[0].rr = 2;                                      /* (ROT would start at voice 2) */
+    trk_note_on(&trk[0], 60, 100);
+    trk_note_on(&trk[0], 64, 100);
+    trk_note_on(&trk[0], 67, 100);
+    check("POLY2: a chord takes voices 0, 1, 2", v[0].note == 60 && v[1].note == 64 && v[2].note == 67 && !v[3].active);
+    P2_RUN(40);
+    trk_note_off(&trk[0], 60);
+    trk_note_off(&trk[0], 64);
+    trk_note_off(&trk[0], 67);
+    P2_RUN(4);
+    check("POLY2: the tails ring out with no new note", v[0].active && v[1].active && v[2].active && !v[0].gate);
+    for (i = 1; i < n; i++) {
+        int32_t d = y[i] - y[i - 1], a = y[i] < 0 ? -y[i] : y[i];
+        slope = (d < 0 ? -d : d) > slope ? (d < 0 ? -d : d) : slope;
+        peak = a > peak ? a : peak;
+    }
+    k = n;
+    trk_note_on(&trk[0], 72, 100);
+    check("POLY2: a note after every key is up takes voice 0 and cuts the other tails",
+          v[0].note == 72 && v[0].gate && v[1].stage == 4u && v[2].stage == 4u);
+    i = n;
+    P2_RUN(4);
+    for (; i < n; i++) {
+        int32_t d = y[i] - y[i - 1];
+        d = d < 0 ? -d : d;
+        step = d > step ? d : step;
+    }
+    snprintf(what, sizeof what, "POLY2: the cut does not click (step %d, the tone's own slope %d, its peak %d)", step, slope, peak);
+    check(what, step <= slope + peak / 16);
+    (void)k;
+    check("POLY2: the cut tails are free", !v[1].active && !v[2].active && v[0].active);
+    trk_note_on(&trk[0], 64, 100);
+    check("POLY2: the next free voice", v[1].note == 64 && v[1].gate);
+    trk_note_off(&trk[0], 72);
+    P2_RUN(2);
+    trk_note_on(&trk[0], 67, 100);
+    check("POLY2: with a key held no tail is cut, and the tail on voice 0 takes the note",
+          v[0].note == 67 && v[0].gate && v[1].note == 64 && v[1].gate && v[1].stage != 4u);
+    trk_note_off(&trk[0], 64);
+    P2_RUN(2);
+    trk_note_on(&trk[0], 64, 100);
+    check("POLY2: a released note retriggers its voice while a key is held", v[1].note == 64 && v[1].gate && !v[2].active);
+    trk_note_on(&trk[0], 48, 100);
+    trk_note_on(&trk[0], 72, 100);
+    trk_note_on(&trk[0], 80, 100);
+    check("POLY2: all held: the oldest goes, not the bass", v[0].note == 80 && v[2].note == 48 && !v[4].active);
+
+    setup(E, 1);                                        /* another part's tail stays */
+    host_preset(&trk[1], ENGI_DCO, 0);
+    trk[1].p[P_VOICE] = V_POLY;
+    trk[1].p[P_REL] = 110;
+    trk[0].p[P_ALLOC] = 2;
+    trk[0].p[P_REL] = 110;
+    trk_note_on(&trk[1], 50, 100);
+    trk_note_on(&trk[0], 60, 100);
+    trk_note_off(&trk[1], 50);
+    trk_note_off(&trk[0], 60);
+    trk_note_on(&trk[0], 62, 100);
+    check("POLY2: another part's tail is left alone", trk[1].v[0].active && trk[1].v[0].stage != 4u);
+
+    setup(E, 1);                                        /* ROT, as before */
+    trk[0].p[P_REL] = 110;
+    trk_note_on(&trk[0], 60, 100);
+    trk_note_off(&trk[0], 60);
+    trk_note_on(&trk[0], 62, 100);
+    check("ROT: a new note leaves the tail ringing", v[0].active && v[0].stage != 4u && v[1].note == 62);
+#undef P2_RUN
+}
+
 /* the noise (the DCO's NOISE and the VCF's thermal noise) is one running xorshift per part, as fm-106's runs on across
  * notes: a sound is the same again from the same state (power-on: regress.c's golden renders), not from any silence */
 static void fresh(uint32_t pi)
@@ -759,12 +880,14 @@ int main(int argc, char **argv)
     pitch();
     dc_and_bounds();
     resonance();
+    thermal();
     hpf();
     keytrack();
     retrigger();
     gate();
     vca_adsr();
     voices();
+    poly2();
     determinism();
     cost();
     if (argc > 1) {
