@@ -24,36 +24,10 @@ On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it f
   ACC, WAVE (SAW / SQR), DRV, DTYP (SOFT / RAT). One voice; a step's SLIDE, or overlapping keys in LEGATO, glide with the
   track's GLIDE as the slide time; an ACC step (velocity 127) accents. It is the only float code in the firmware (the app is
   built for the FPU; the build fails on float anywhere else).
-- **TB-3PO, a MIDI/pattern generator for the 303.** On a 303 track ARP opens TB-3PO instead of the arpeggiator. GENERATE:
-  DENS, ACCENT, SLIDE, OCTS; SCALE: ROOT, SCALE, OCTAVE, MUTATE (every 1..16 passes of the line while playing, or OFF).
-  OCT+ writes a new line into the track's 64 steps (notes, accents, slides, rests), OCT- mutates about 25 % of the steps.
-  The steps stay normal, editable steps. An integer port of X0X's generator that makes the same notes for the same seed
-  and settings (from the Phazerville Hemisphere Suite's TB_3PO applet); a rest keeps a note of its own. DENS, ACCENT,
-  SLIDE, OCTS, ROOT, SCALE and OCTAVE act on the line while it plays, from its next bar (at once when stopped): DENS
-  silences or brings back steps, ACCENT and SLIDE add or remove them on notes, always the same steps first; ROOT and
-  OCTAVE transpose, SCALE moves each note to the nearest one of the scale, OCTS folds or spreads the octaves. Turned
-  back, the line is the one it was (hand edits included). TEMP and MODE are for the next OCT+ / OCT-. A third page, MODEL, sets MODE to AICD: the lines
-  then come from [Aicd](https://github.com/mganss/Aicd)'s model (Michael Ganss, MIT), an n-gram trained on many ABL3
-  acid patterns, so each step follows the two before it as it did in those. In AICD, GENERATE is DENS, ACCENT, SLIDE (as in TB-3PO, 0..100 %: the share of the steps that are notes, and of
-  the notes accented or sliding; the defaults are the model's own) and TEMP (below 100 % the likelier lines, above it the rarer ones);
-  SCALE starts at CHRO (no bias) and otherwise favours the scale's notes; ROOT and OCTAVE transpose. The three leave the
-  model's lines as they are while they are within a step or so of what they say (so TEMP stays in charge), and past it
-  turn random steps on or off, only into steps the model has; 0 and 100 % are exact. OCT- draws a run of a quarter of the line
-  (16 steps at most) anew, leaning to the three but not fitted (the rest of the line stays).
-  While playing, OCT+ and OCT- land on the next bar; each is one undo (SAVE held), the track's automation kept. MODEL also
-  has SEED (every line has a number, 1..9999, to dial it again), HIST (the last 8 lines) and KEEP (a new line keeps the
-  old notes or the old rhythm). MODE ACID is a third generator on TB-3PO's knobs: a small note pool (the root, the
-  fifth, then the scale's), each next note by its interval as often as in Aicd's corpus, rhythms from cells, accents in
-  runs, slides towards the root; SHAPE sets STYLE (ROLLING, STAB, HYPNOTIC, TRANCE, DUB), NOTES, RHYTHM (MODEL: Aicd's
-  rhythm under the pool's notes) and TIES, FORM the line's parts (AAAB, AABA, ABAC, CALL). In AICD, SHAPE has JOIN
-  (fewer pattern ends inside a line, a MUTATE that leads back into it) and BEST (the best of 2..8 draws). Every MODE:
-  FORM's FLAIR (ratchets, 4:4 pickups), TWIST (a cutoff arc over T.BARS bars); PLAY: MORPH (line A to line B; OCT+ a new
-  B, OCT- swaps them), SLIP and P.LEN (the notes against the rhythm, as a real 303's pitch and time lists), M.TYPE (auto
-  MUTATE: DRIFT, VARY for one pass, TURN the last 4 steps); LINK: POCKET (DODGE, LOCK, AFTER the first DRUM track's
-  kick; OCT+ here rolls the drums and the bass together), ANSWER (against the other 303 track: REST, 3RD, 5TH, OCT;
-  its rhythm wins over KEEP), ROOT< (the root follows a track's lowest note each bar; it wins over KEYS ROOT), KEYS
-  (the keys set ROOT or, in ACID, the note pool; silent). Scales
-  PDOM, BLUE, LOCR and DARK follow MAJ.
+- **TB-3PO, a line generator for the 303.** On a 303 track ARP opens TB-3PO instead of the arpeggiator: three
+  generators (X0X's TB-3PO, the AICD model, ACID), knobs that change the playing line from its next bar, line numbers and
+  history, morphing between two lines, and links to the drums and the other tracks. See
+  [TB-3PO: the 303 line generator](#tb-3po-the-303-line-generator) below.
 
 - **DrumBrain, a pattern generator for DRUM tracks.** On a DRUM track ARP goes on, after ARP and ARP 2, to two pages with
   the model of [DrumBrain](https://github.com/mganss/DrumBrain) (Michael Ganss, MIT), trained on about 250 808 / 909
@@ -84,6 +58,134 @@ Compatibility: the engine order is append-only, so projects and sounds of the en
 all four switches at 1 every earlier golden render is bit for bit as before. Upstream's ADPCM engine (its engine 14, off by default there) is not
 available here: 14 is DCO and 15 the 303 (`FELUCCA_ADPCM=1` stops the build). Firmware up to 1.6.1 resets the new DCO favourites setting (PER5) and shows projects that use
 the DCO engine as EMPTY.
+
+## TB-3PO: the 303 line generator
+
+TB-3PO writes acid lines into a 303 track's steps: notes, rests, accents, slides and ties. They stay normal steps, so
+you can edit them by hand like any other, and the track's automation is kept.
+
+### Quick start
+
+1. Pick the 303 engine on a track and press **ARP**: the GENERATE page opens.
+2. Press **OCT+** for a new line ("NEW LINE 4711": every line has a number). Press **OCT-** to mutate it (about a quarter
+   of the steps change).
+3. Press **PLAY** and turn the knobs: DENS, ACCENT, SLIDE and the others change the line from its next bar. Turned back,
+   they give you the same line again.
+4. Press **ARP** again to step through the pages. **SAVE** held undoes the last OCT+ / OCT-.
+
+While playing, OCT+ and OCT- land on the next bar, so the change is always in time. In a song they are refused
+(STOP TO EDIT): there the steps belong to the song's slots. Everything except the line history is saved with the
+project.
+
+### The three generators (MODEL > MODE)
+
+- **TB-3PO**: X0X's generator, ported note for note (from the Phazerville Hemisphere Suite's TB_3PO applet). Random
+  notes of the scale, the root often on the beat. Quick and wild.
+- **AICD**: lines from [Aicd](https://github.com/mganss/Aicd)'s model (Michael Ganss, MIT), learned from many ABL3 acid
+  patterns: each step follows the two before it as it did there. Sounds the most like real acid lines.
+- **ACID**: a generator made for this fork. It writes a line the way a player would: a few notes (the root, the fifth,
+  then the scale's), each next note by its step from the last as often as in real acid lines, a rhythm from a pattern
+  cell, accents in runs, slides towards the root, held notes (ties) and, if you like, a song form (AAAB and so on).
+
+### The pages
+
+**ARP** steps through them in this order. SHAPE shows only in AICD and ACID.
+
+A knob marked **live** changes the playing line at its next bar (at once when stopped). A knob marked **next** is for the
+next OCT+ / OCT-: the footer's NEW LINE gets a star until you press it.
+
+**GENERATE**
+
+| Knob | What it does |
+|---|---|
+| DENS | live. How many steps play (0..100 %). Down removes the off-beats first, up brings notes back. |
+| ACCENT | live. How many notes are accented. |
+| SLIDE | live. How many notes slide into the next one. |
+| OCTS | live. The octave range, 1..3 (TB-3PO, ACID). In AICD this knob is TEMP (next): below 100 % the likelier lines, above it the rarer ones. |
+
+**SCALE**
+
+| Knob | What it does |
+|---|---|
+| ROOT | live. The key. |
+| SCALE | live. MIN, PHRY, HARM, MPEN, DOR, MAJ, PDOM (Phrygian dominant), BLUE, LOCR (Locrian), DARK (1, b2, b5). Notes move to the nearest note of the new scale. In AICD it starts at CHRO (no scale). |
+| OCTAVE | live. The octave of the root. |
+| MUTATE | Auto MUTATE while playing: every 1..16 passes of the line, or OFF. |
+
+**MODEL**
+
+| Knob | What it does |
+|---|---|
+| MODE | next. TB-3PO, AICD or ACID. |
+| SEED | The line's number, 1..9999. Turn it to dial any line; note the number of one you like to get it back later. |
+| HIST | Steps back through the last 8 lines (0 = the current one). Not saved with the project. |
+| KEEP | For OCT+: OFF, NOTES (the new line plays the old notes in a new rhythm) or RHYTHM (new notes over the old rhythm). |
+
+**SHAPE** (ACID)
+
+| Knob | What it does |
+|---|---|
+| STYLE | next. AUTO, ROLLING, STAB, HYPNOTIC, TRANCE, DUB: sets NOTES, RHYTHM and TIES while those are on AUTO. |
+| NOTES | next. How many different notes the line uses: AUTO (3..5) or 1..7. Few notes sound hypnotic. |
+| RHYTHM | next. AUTO, 16THS, OFFBEAT, 3-3-2, SPARSE, ROLL, or MODEL (AICD's rhythm under ACID's notes). |
+| TIES | next. How many notes are held over into the next step: AUTO or 0..100 %. |
+
+**SHAPE** (AICD)
+
+| Knob | What it does |
+|---|---|
+| JOIN | next. ON avoids the model's pattern ends inside a line (fewer abrupt restarts), and a MUTATE tries to lead back into the line. |
+| BEST | next. Draws 2..8 lines and keeps the best (the loop joins well, the root on step 1, parts that repeat). 1 = off. |
+
+**FORM**
+
+| Knob | What it does |
+|---|---|
+| FORM | next (ACID only). The line in four parts: AAAB, AABA, ABAC, or CALL (a phrase and its answer). A repeated A changes a note or two, and the end gets a turnaround. Needs LEN 8 or more. |
+| FLAIR | next. Adds ratchets (x2, x3) and pickups that play every 4th pass, on weak steps of a new line. |
+| TWIST | Opens the filter in an arc over T.BARS bars, a little more on runs of accents. 0 = off. |
+| T.BARS | The length of TWIST's arc, 1..16 bars. |
+
+**PLAY**
+
+| Knob | What it does |
+|---|---|
+| MORPH | live. Moves the line step by step from line A (yours) to a second line B, 0..100 %. |
+| SLIP | live. Shifts the notes against the rhythm (the rhythm stays, the melody slides along it), 0..15. |
+| P.LEN | live. Cycles only the first 1..16 notes over the rhythm, like a real 303's separate pitch and time lists. OFF = all. |
+| M.TYPE | How auto MUTATE changes the line: DRIFT (it keeps changing), VARY (a variation for one pass, then the line comes back), TURN (only the last 4 steps change). |
+
+On PLAY, **OCT+** draws a new line B and **OCT-** swaps A and B.
+
+**LINK**
+
+| Knob | What it does |
+|---|---|
+| POCKET | live. Fits the bass around the first DRUM track's kick: DODGE (no note on a kick), LOCK (a note on every kick) or AFTER (no note on a kick, one right after it). Follows the drums as you edit them. |
+| ANSWER | next. Against the other 303 track: REST (play where it rests), 3RD, 5TH or OCT (its rhythm, the notes a third / fifth / octave up). Its rhythm replaces KEEP's. |
+| ROOT< | live. The root follows a track's lowest note, bar by bar: T1..T4 (a chord or pad track), or OFF. The saved ROOT stays. |
+| KEYS | What the keys do on this track: PLAY (play notes as usual), ROOT (a key sets the root, at the next bar) or POOL (the keys held are ACID's notes for the next line). With ROOT or POOL the keys make no sound. |
+
+On LINK, **OCT+** rolls a new drum pattern on the first DRUM track (DrumBrain) and a new bass line around its kick at the
+same time ("NEW GROOVE"). SAVE held then undoes the bass only.
+
+### Recipes
+
+- **A line for a whole track**: ACID, STYLE HYPNOTIC, NOTES 2, FORM AABA, MUTATE 8 with M.TYPE VARY. It keeps its
+  shape and still moves.
+- **A breakdown**: on PLAY, press OCT+ for a sparse line B (lower DENS first), then ride MORPH down and back up.
+- **Bass and drums that lock**: put a DRUM track next to the 303, on LINK set POCKET to DODGE and press OCT+.
+- **Play the key changes live**: LINK > KEYS ROOT, then press keys while the line runs; or ROOT< on a chord track.
+- **Keep a good line**: note its number (MODEL > SEED), or step back with HIST after a few OCT+.
+
+### Good to know
+
+- AICD (and ACID's RHYTHM MODEL) needs the build switch `FELUCCA_AICD` (on by default); LINK's drum groove needs
+  DrumBrain (`FELUCCA_DBRAIN`, on by default).
+- SLIP, P.LEN and POCKET work on the line as it is. After a MUTATE or a hand edit, turning them back does not always
+  restore the line exactly.
+- Undo does not cover line B or the drums from LINK's OCT+.
+- Older firmware loads a project with ACID as AICD and ignores the new settings.
 
 ## AI disclaimer
 
