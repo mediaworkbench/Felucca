@@ -7,14 +7,19 @@
  *    generate() (the same steps: the - between beats, CONTEXT, a kept start); the sources (TOM, BELL by kit); DENS
  *    (100 % nothing, the keep counts, the weak hits first, AC not thinned); the cost.
  * 3. the steps: only LANES written, the rest of a step kept; the velocity rule; repeated to LEN; VARY's first half
- *    kept; a step that keeps a hit keeps its CHANCE and RATCH; automation and locks kept, a lock on an emptied step gone.
+ *    kept; a step that keeps a hit keeps its CHANCE and RATCH; automation and locks kept, a lock on an emptied step gone;
+ *    IRQs off a step at a time; in a song the graph draws the slot's steps.
  * 4. the UI: ARP on a DRUM track ARP, ARP 2, BRAIN, BRAIN 2; other engines none; OCT+ / OCT-, not the octave; the knobs
- *    and NEW's star; undo; refused in a song.
+ *    and NEW's star; undo (the seed, the TOM source and the star with it); refused in a song.
  * 5. a project: the settings back with the init FM6 patch; unused settings keep the track's FM6 patch; another FM6 area
- *    the defaults; pack / unpack.
+ *    the defaults; pack / unpack; a knob alone is a change to autosave and PROJECT LOAD (DrumBrain's, TB-3PO's).
  * Built and run by tests/run_tests.sh (argv[1] gen_dbrain.py's reference, build/host/dbrain_ref.txt); again with
  * FELUCCA_DBRAIN=0 (no pages). */
 #define UI_TEST_NO_MAIN 1
+#define HOST_IRQ_STUBS 1
+static int irq_depth, irq_max, irq_sections;      /* db_write's critical sections */
+static void fm1_irq_off(void) { if (++irq_depth > irq_max) irq_max = irq_depth; irq_sections++; }
+static void fm1_irq_on(void) { irq_depth--; }
 #include "ui_test.c"
 #ifdef __APPLE__
 #include <libproc.h>
@@ -410,6 +415,43 @@ static int steps(void)
         ok &= t->step[10].time == ST_REST && t->step[2].hit == 1u;
     }
     bad += check("dbrain steps: automation and locks stay; a lock on a step that ends empty goes (as SEQ TOOLS')", ok);
+
+    blank(t);
+    t->p[P_SLEN] = 24;
+    pat_fill(&p, 16, 3u, 1u);
+    p.from = 4;
+    irq_max = irq_sections = irq_depth = 0;
+    db_write(t, &p, DB_LANE_MASK[DB_L_BEAT]);
+    bad += check("dbrain steps: IRQs off one step at a time, every step written, none left off",
+                 irq_sections == 24 - 4 && irq_max == 1 && irq_depth == 0);
+
+    {                                                /* in a song: the graph's the slot's steps, as the sequencer's */
+        static uint16_t song_px[CV_MAX];
+        uint32_t k = trk_index(t), n;
+        blank(t);
+        t->p[P_SLEN] = 16;
+        memset(chain.source[0].step[k], 0, sizeof chain.source[0].step[k]);
+        for (i = 0; i < 16u; i++) {
+            chain.source[0].step[k][i].time = ST_NOTE;
+            chain.source[0].step[k][i].hit = (uint8_t)(i % 2u ? 1u : 8u);
+        }
+        chain.running = 1;
+        chain.lane[k] = 0;
+        cv_begin(240, 120, T_BG);
+        graph_dbrain(t, T_TEXT);
+        n = (uint32_t)cv_w * cv_h;
+        memcpy(song_px, cv_px, n * sizeof cv_px[0]);
+        chain.running = 0;
+        memcpy(t->step, chain.source[0].step[k], sizeof chain.source[0].step[k]);
+        cv_begin(240, 120, T_BG);
+        graph_dbrain(t, T_TEXT);
+        ok = !memcmp(song_px, cv_px, n * sizeof cv_px[0]);
+        blank(t);
+        cv_begin(240, 120, T_BG);
+        graph_dbrain(t, T_TEXT);
+        ok &= memcmp(song_px, cv_px, n * sizeof cv_px[0]) != 0;
+        bad += check("dbrain graph: in a song the slot's steps (what plays), not the track's", ok);
+    }
     return bad;
 }
 #endif
@@ -491,6 +533,33 @@ static int ui_db(void)
         undo_swap();
         ok &= !memcmp(t->step, after, sizeof after);
         bad += check("dbrain ui: SAVE held undoes it and brings it back", ok);
+        {                                            /* the steps' seed, TOM source and star go with them */
+            uint32_t s1, s2;
+            uint8_t tm1, tm2;
+            db_cfg[0].tom = 1;
+            db_stale[0] = 1;
+            s1 = db_cfg[0].seed;
+            tm1 = db_cfg[0].tom;
+            do {                                     /* (until the new pattern's TOM source is another) */
+                press(B_OCTUP);
+                s2 = db_cfg[0].seed;
+                tm2 = db_cfg[0].tom;
+                if (tm2 == tm1) { undo_swap(); db_cfg[0].seed = s1; db_cfg[0].tom = tm1; db_stale[0] = 1; frames(32); }
+            } while (tm2 == tm1);
+            ok = db_stale[0] == 0u && s2 != s1;
+            undo_swap();
+            ok &= db_cfg[0].seed == s1 && db_cfg[0].tom == tm1 && db_stale[0] == 1u;
+            undo_swap();
+            ok &= db_cfg[0].seed == s2 && db_cfg[0].tom == tm2 && db_stale[0] == 0u;
+            bad += check("dbrain ui: undo brings back the seed, the TOM source and NEW's star; again the new ones", ok);
+            {                                        /* another action's undo leaves them */
+                tl_undo_take(t);
+                undo_swap();
+                ok = db_cfg[0].seed == s2 && db_cfg[0].tom == tm2;
+                bad += check("dbrain ui: another action's undo leaves them", ok);
+                undo_swap();
+            }
+        }
         (void)motion_set_lock(t, 2, P_E0, 11);
         press(B_OCTDN);
         ok = !strcmp(ui.msg, "VARIED") && motion_count(t) == 1u && (uint32_t)song.octave == oct;
@@ -561,6 +630,31 @@ static int project(void)
     fm6_pack(fm6_patch[0], pk);
     ok = db_unpack(0, pk) == 0 && db_cfg[0].style == DB_HOUSE && !db_touched(0);
     bad += check("dbrain project: an FM6 patch in the area: the defaults", ok);
+
+    ui_power_on();
+    set_engine(ENGI_DRUM);
+    frame();
+    proj_kept_now();
+    ok = !proj_changed();
+    db_cfg[song.sel % NTRK].temp = 101;
+    ok &= proj_changed() != 0;
+    db_cfg[song.sel % NTRK].temp = 100;
+    ok &= !proj_changed();                           /* (back to the power-on settings: the area a patch again) */
+    db_cfg[song.sel % NTRK].style = DB_BREAKS;
+    proj_kept_now();
+    db_cfg[song.sel % NTRK].lanes = DB_L_HATS;
+    ok &= proj_changed() != 0;
+    bad += check("dbrain project: a knob alone is a change (autosave, PROJECT LOAD's question)", ok);
+#if T303_ON
+    ui_power_on();
+    set_engine(ENGI_303);
+    frame();
+    proj_kept_now();
+    ok = !proj_changed();
+    tb3_cfg[song.sel % NTRK].temp = 150;
+    ok &= proj_changed() != 0;
+    bad += check("dbrain project: TB-3PO's knob alone too", ok);
+#endif
     return bad;
 }
 

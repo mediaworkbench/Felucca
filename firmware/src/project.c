@@ -1371,6 +1371,14 @@ static uint32_t autosave_sig(void)
         h = as_mix(h, &t->preset, 1);
         h = as_mix(h, t->step, sizeof t->step);
         h = as_mix(h, fm6_patch[i], sizeof fm6_patch[i]);
+        if (t->eng_req % NENGINES == ENGI_303 || (t->eng_req % NENGINES == ENGI_DRUM && db_touched(i))) {
+            uint8_t pk[FM6_PACKED];                     /* what project_capture keeps in the track's FM6 area instead */
+            if (t->eng_req % NENGINES == ENGI_303)      /* (their knobs change no step: TB-3PO's, DrumBrain's settings) */
+                tb3_pack(i, pk);
+            else
+                db_pack(i, pk);
+            h = as_mix(h, pk, sizeof pk);
+        }
     }
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_NAME && i != G_LOAD && i != G_SAVE)

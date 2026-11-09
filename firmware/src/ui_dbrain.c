@@ -6,8 +6,8 @@
  * LANES are written, so HATS re-rolls the hats and keeps the rest.
  *
  * As SEQ TOOLS' actions (ui_tools.c), not as TB-3PO: the undo copy keeps the track's automation and locks (load_begin
- * with UNDO_PAT would drop them, and here lanes and steps stay), one undo each (SAVE held). Not in a song (its steps are
- * a slot's). Included by ui.c */
+ * with UNDO_PAT would drop them, and here lanes and steps stay), one undo each (SAVE held; the seed, the TOM source and
+ * NEW's star with it: UNDO_DB). Not in a song (its steps are a slot's). Included by ui.c */
 static void tl_undo_take(track_t *t);                 /* (ui_tools.c) */
 static uint64_t tl_used(const track_t *t, uint32_t len);
 static void tl_unlock(track_t *t, uint64_t was, uint32_t len);
@@ -87,14 +87,18 @@ static void db_knob(uint32_t slot, int32_t steps)    /* (ui_input.c edit_param) 
 
 /* the pattern into t's steps below LEN, N repeated; only the set's lanes, and from p->from on (VARY's first half stays).
  * Per step the lanes that end on first: a step that lost its last hit on the way would lose its CHANCE and RATCH
- * (step_clear). AC is the step's velocity, on a step of the set's hits alone and no notes (it is one for the whole step) */
+ * (step_clear). AC is the step's velocity, on a step of the set's hits alone and no notes (it is one for the whole step).
+ * IRQs off for a step at a time: the sequencer never plays one half written, a hit recorded in the ISR is not lost (and
+ * the off time stays that of one step, TIMER5 services USB audio) */
 static void db_write(track_t *t, const db_pat_t *p, uint32_t mask)
 {
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, l;
     for (i = p->from; i < len; i++) {
         uint32_t j = i % p->n;
         step_t *s = &t->step[i];
-        uint32_t vel = j < p->from ? t->step[j].vel : p->ac[j] ? 112u : 88u;   /* (a repeat of the first half: as it is) */
+        uint32_t vel;
+        fm1_irq_off();
+        vel = j < p->from ? t->step[j].vel : p->ac[j] ? 112u : 88u;   /* (a repeat of the first half: as it is) */
         for (l = 0; l < NLANE; l++)
             if (((mask & p->hit[j]) >> l) & 1u) {
                 grid_hit(t, i, l, 1);
@@ -105,6 +109,7 @@ static void db_write(track_t *t, const db_pat_t *p, uint32_t mask)
                 grid_hit(t, i, l, 0);
         if (s->time == ST_NOTE && s->hit && !s->n && !(s->hit & ~mask))
             s->vel = (uint8_t)vel;
+        fm1_irq_on();
     }
 }
 
@@ -113,7 +118,8 @@ static void db_oct(uint32_t oct)
 {
     static const char HEX[] = "0123456789ABCDEF";
     track_t *t = TSEL;
-    uint32_t k = trk_index(t), fresh = (oct & 2u) != 0u, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), r, i;
+    uint32_t k = trk_index(t), fresh = (oct & 2u) != 0u, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), r, i, seed0;
+    uint8_t tom0;
     uint64_t was;
     db_pat_t p;
     char b[8];
@@ -121,10 +127,16 @@ static void db_oct(uint32_t oct)
         ui_message("STOP TO EDIT");
         return;
     }
+    seed0 = db_cfg[k].seed;                            /* (the undo's) */
+    tom0 = db_cfg[k].tom;
     r = db_start(&db_cfg[k], fresh, fm1_ms ^ (ui.frame << 7));
     db_line(t, !fresh, &r, &p);
     was = tl_used(t, len);
     tl_undo_take(t);
+    undo.what |= UNDO_DB;
+    undo.db_seed = seed0;
+    undo.db_tom = tom0;
+    undo.db_stale = db_stale[k];
     db_write(t, &p, DB_LANE_MASK[db_cfg[k].lanes % DB_NLANES]);
     tl_unlock(t, was, len);
     db_stale[k] = 0;

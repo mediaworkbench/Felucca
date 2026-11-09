@@ -878,7 +878,7 @@ static int seq_is_empty(const track_t *t)
  * takes the copy too (UNDO_MOT: SAVE held puts the track's motion back, the sound and the steps stay; motion_undo_take).
  * A sound load keeps the track's motion on the parameters every engine has (load_end, motion.c motion_sound_loaded);
  * a pattern load drops it all (the steps it was on are gone) */
-enum { UNDO_SOUND = 1, UNDO_PAT = 2, UNDO_MOT = 4 };
+enum { UNDO_SOUND = 1, UNDO_PAT = 2, UNDO_MOT = 4, UNDO_DB = 8 };   /* (UNDO_DB: DrumBrain's OCT+ / OCT-, ui_dbrain.c) */
 static struct {
     uint8_t trk;                 /* track + 1, 0 = nothing to undo */
     uint8_t keep;                /* the track is as the last load left it (undo.after): a next load keeps the copy */
@@ -894,6 +894,8 @@ static struct {
     uint32_t from_h;             /* pat_from_h[], pat_from[] of the copy (the header's slot letter) */
     uint8_t from;
     uint32_t t_ms;               /* time of the last load (the editor's SETs after it belong to it) */
+    uint32_t db_seed;            /* UNDO_DB: the pattern's seed and TOM source, NEW's star (undo_swap) */
+    uint8_t db_tom, db_stale;
 } undo __attribute__((section(".pool")));   /* (main loop only: off the audio code's .bss) */
 static uint8_t undo_depth;       /* loads nest (an engine jump loads its first preset): the outer one counts;
                                   * felucca_init / project_load raise it to take no copy at all */
@@ -1164,6 +1166,16 @@ static void undo_swap(void)
         fm6_own_ok &= (uint8_t)~(1u << tr);
         memcpy(undo.fm6, v, FP_SIZE);
         undo.fm6_slot = sl;
+    }
+    if (undo.what & UNDO_DB) {                    /* DrumBrain: VARY goes on with the TOM source of the steps back */
+        uint32_t tr = trk_index(t), sd = db_cfg[tr].seed;
+        uint8_t tm = db_cfg[tr].tom, st = db_stale[tr];
+        db_cfg[tr].seed = undo.db_seed;
+        db_cfg[tr].tom = undo.db_tom;
+        db_stale[tr] = undo.db_stale;
+        undo.db_seed = sd;
+        undo.db_tom = tm;
+        undo.db_stale = st;
     }
     undo.keep = 0;                                /* the next load copies the track as it is now */
     if (t == TSEL)

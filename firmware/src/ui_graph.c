@@ -349,7 +349,7 @@ static void graph_dbrain(const track_t *t, uint16_t c)
         cv_rect(TB3_X0 + (int32_t)(i * TB3_W / len), TB3_Y0 - 2, 1, TB3_H + 4, i % 16u ? T_GRID : T_RAISE);
     for (l = 0; l < NLANE; l++)
         for (i = 0; i < len; i++) {
-            const step_t *st = &t->step[i];
+            const step_t *st = &seq_steps(t)[i];       /* (in a song the slot's, and LEN is the slot's) */
             uint32_t bit = 1u << l;
             int32_t x = TB3_X0 + (int32_t)(i * TB3_W / len), w = TB3_X0 + (int32_t)((i + 1u) * TB3_W / len) - x;
             if (step_lanes(st) & bit)
