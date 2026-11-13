@@ -9,7 +9,7 @@ The firmware uses [Felucca-Engines](https://github.com/hugelton/Felucca-Engines)
 
 ## New in this fork
 
-On top of upstream Felucca 1.8.1 (the version string is still 1.8.1); build it from this branch ([BUILDING.md](BUILDING.md)).
+On top of upstream Felucca 1.8.2 (the version string is still 1.8.2); build it from this branch ([BUILDING.md](BUILDING.md)).
 
 - **DCO engine (14): a Juno-106 voice.** Up to 4 voices a track. EDIT 1 has WAVE, PW, SUB, NOIS, CUT, RES, KEY and HPF; RANGE
   (16' 8' 4') has a page of its own; the track's LFO / ENV -> SHP move the pulse width (PWM). ENV's third page, VCA (DCO

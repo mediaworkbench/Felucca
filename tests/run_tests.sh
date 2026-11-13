@@ -234,6 +234,9 @@ ENG_ALL="-DFELUCCA_SAMPLE=1 -DFELUCCA_LOFI=1 -DFELUCCA_VOICE=1"
 fail=0
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
+run "package flash boundaries (synthetic SDK)" python3 tests/fm1pkg_test.py
+run "package flash boundaries (Python -O, synthetic SDK)" python3 -O tests/fm1pkg_test.py
+
 $CC -o "$OUT/storage_test" tests/storage_test.c
 $CC -Ibuild/gen -Ifirmware/src -o "$OUT/signed_audio_scaling_test" tests/signed_audio_scaling_test.c -lm
 run "DSP signed arithmetic: fixed DC/lowcut/FM6 vectors and phase wrap" "$OUT/signed_audio_scaling_test"
@@ -391,6 +394,11 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm
     run "editor: real C protocol, malformed transfers, queue recovery, MENU settings (writes build/host/menu.json)" \
         env MENU_JSON="$OUT/menu.json" "$OUT/editor_test"
+    $CC -O1 -w -pthread -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_eff_test" tests/fm6_eff_test.c -lm
+    run "FM6 effective patch: editor/project/slot updates, engine switches, generation alias (core on/off)" "$OUT/fm6_eff_test"
+    $CC -O1 -w -DFELUCCA_CPU2=0 -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_eff_test_c1" tests/fm6_eff_test.c -lm
+    run "FM6 effective patch: build without second core" "$OUT/fm6_eff_test_c1"
+    run "SysEx dispatch: editor/OTA ownership across interrupt arrivals" python3 tests/sysex_dispatch_test.py
     $CC -w -DFELUCCA_CPU2=0 -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test_c1" tests/editor_test.c -lm
     run "editor, a FELUCCA_CPU2=0 build: MENU settings without 2ND CORE (ids 0..31)" "$OUT/editor_test_c1"
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/robust_test" tests/robust_test.c -lm
@@ -592,6 +600,8 @@ else
     $SCC -o "$A/fuzz_smp" tests/fuzz_smp.c -lm
     run "ASan/UBSan fuzz: user sample slot headers -> scan -> SAMPLE / GRAIN / SLICE (1000, seed 17)" "$A/fuzz_smp" 1000 17
 fi
+
+run "target budget: parser, cost and CLI fixtures" python3 tests/target_budget_test.py
 
 run "regression: target cost of the render loops (pi32v2 disassembly)" python3 tests/target_budget.py \
     build/felucca.dis tests/target_budget.txt
