@@ -346,9 +346,9 @@ async function editorSamplePresets() {
   const kitD = E.parse[C.DESC](await rq(E.req.desc(0, info.pe0)));
   const kitSet = [];
   for (const v of [1, 2, 3]) kitSet.push(E.parse[C.SET](await rq(E.req.set(0, info.pe0, v))).value);
-  ok(eq(kitD.names, ["STD", "66", "10", "77", "80", "10", "66", "55", "77", "DEEP", "TIGHT", "PERC"]) &&   /* (1.5.6: DEEP TIGHT PERC) */
-     eq([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((v) => E.aliasOf(kitD.names, v)), [0, 6, 5, 8, 4, 5, 6, 7, 8, 9, 10, 11]) &&
-     eq(E.enumShown(kitD).filter((v) => E.aliasOf(kitD.names, v) === v).map((v) => kitD.names[v]), ["STD", "80", "10", "66", "55", "77", "DEEP", "TIGHT", "PERC"]) &&
+  ok(eq(kitD.names, ["STD", "66", "10", "77", "80", "10", "66", "55", "77", "DEEP", "TIGHT", "PERC", "808", "909", "606", "VINTAGE", "TRAP", "BOOMBAP", "LO-FI", "HOUSE", "TECHNO", "ELECTRO", "JUNGLE", "LATIN", "CHIP", "ARCADE", "INDUSTR", "JAZZ"]) &&   /* (1.5.6: DEEP TIGHT PERC; then SLOOP's kits, 12 ..) */
+     eq(kitD.names.map((n, v) => E.aliasOf(kitD.names, v)), [0, 6, 5, 8, 4, 5, 6, 7, 8, 9, 10, 11, ...kitD.names.slice(12).map((n, i) => 12 + i)]) &&
+     eq(E.enumShown(kitD).filter((v) => E.aliasOf(kitD.names, v) === v).map((v) => kitD.names[v]), ["STD", "80", "10", "66", "55", "77", "DEEP", "TIGHT", "PERC", "808", "909", "606", "VINTAGE", "TRAP", "BOOMBAP", "LO-FI", "HOUSE", "TECHNO", "ELECTRO", "JUNGLE", "LATIN", "CHIP", "ARCADE", "INDUSTR", "JAZZ"]) &&
      eq(kitSet, [6, 5, 8]),
     "DRUM: KIT 1..3 (once HAND CYM H+CYM) named 66 10 77, aliases of 6 5 8: hidden, a SET lands there");
   const removed = E.parse[C.PRESET](await rq(E.req.preset(4, 4)));
@@ -397,8 +397,9 @@ function mockTables() {
        ph.presets.length === 9 && !ph.presets.some((p) => p.name === "RAIN" || p.name === "DRUM KIT"),
        "editor: PHYS models MODAL STRNG MEMB SYMP (no DUST, no DRUM), 9 presets");
     ok(dr.name === "DRUM" && dr.edit.map((d) => d.label).join() === "KIT,TUNE,TONE,DECY,SNAP,ACC,KICK,DRV" &&
-       dr.presets.length === 4 && dr.presets.every((p) => p.pat === 12) && dr.presets[0].name === "DRUM KIT",
-       "editor: DRUM engine 10 (KIT TUNE TONE DECY SNAP ACC KICK DRV), four kits (1.5.6: DEEP TIGHT PERC) suggesting BEAT");
+       dr.presets.length === 20 && dr.presets.every((p) => p.pat === 12) && dr.presets[0].name === "DRUM KIT" &&
+       dr.presets[4].name === "808 KIT" && dr.presets[19].name === "JAZZ KIT" && dr.presets[19].e[0] === 27,
+       "editor: DRUM engine 10 (KIT TUNE TONE DECY SNAP ACC KICK DRV), 20 kits (1.5.6: DEEP TIGHT PERC; SLOOP's 808 .. JAZZ) suggesting BEAT");
   }
   const dj = DESC;
   if (!existsSync(dj)) { console.log("editor: mock tables == firmware (no build/host/desc.json)        skip"); return; }

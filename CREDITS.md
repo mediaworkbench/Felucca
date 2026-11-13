@@ -19,6 +19,7 @@ thanks the work below; each keeps its own licence (see [LICENSE](LICENSE), [LICE
   Devilfish ranges and the SOFT / RAT drive of [schwung-303](https://github.com/charlesvestal/schwung-303), as [X0X](https://github.com/charlesvestal/fm1-x0x)
   by [charlesvestal](https://github.com/charlesvestal) ported it to the FM-1; its TB-3PO line generator, from [schwung-tb3po](https://github.com/charlesvestal/schwung-tb3po),
   after the [Phazerville](https://github.com/djphazer/O_C-Phazerville) Hemisphere Suite's TB_3PO applet (djphazer and contributors) (GPL-3.0)
+- DRUM's kits 808 .. JAZZ: the synthesised drum kits of [SLOOP](https://github.com/isod89/sloop-fm1) by [isod89](https://github.com/isod89) and its drum voice (GPL-3.0)
 - TB-3PO's AICD mode: the acid line model of [Aicd](https://github.com/mganss/Aicd) by Michael Ganss ([MIT](LICENSES/MIT-Aicd.txt)), as it is
 - ADPCM engine (upstream's; in the tree, not built in this fork): its DSP from snes_spc by Shay Green ([LGPL-2.1-or-later](LICENSES/LGPL-2.1-snes_spc.txt)), ported by [ugotworms](https://github.com/ugotworms) (#172)
 - Hardware layer: [felucca-bsp](https://github.com/hugelton/felucca-bsp) ([MPL-2.0](LICENSES/MPL-2.0-felucca-bsp.txt)), maintained by

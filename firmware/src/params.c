@@ -264,7 +264,7 @@ static const param_desc_t *param_desc_of(uint32_t e, uint32_t id)
 static int32_t enum_orig(const param_desc_t *d, int32_t v)
 {
     if (d->names == N_DRUM_KIT)
-        return v >= 0 && v < DK_COUNT ? (int32_t)DK_PLAYS[v] : v;
+        return v >= 0 && v < DK_COUNT ? (int32_t)drum_kit_plays(v) : v;
     return d->names == SMP_ALL_NAMES && v >= 0 && v < SMP_NSETS ? SMP_SET_ORIG[v] : v;
 }
 

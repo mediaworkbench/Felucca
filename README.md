@@ -38,6 +38,15 @@ On top of upstream Felucca 1.8.2 (the version string is still 1.8.2); build it f
   variation that keeps the first half. The knobs are for the next one (NEW gets a star). The steps stay normal, editable
   steps and the track's automation stays; SAVE held undoes.
 
+- **16 more drum kits.** The DRUM engine's KIT goes on after PERC with synthesised kits of
+  [SLOOP](https://github.com/isod89/sloop-fm1) (isod89, GPL-3.0): 808, 909, 606, VINTAGE, TRAP, BOOMBAP, LO-FI, HOUSE,
+  TECHNO, ELECTRO, JUNGLE, LATIN, CHIP, ARCADE, INDUSTR, JAZZ, each also a preset (808 KIT .. JAZZ KIT, no FX). They
+  play on SLOOP's own drum voice, so they sound as they do there, and are level-matched to Felucca's kits lane by lane.
+  The grid's 8 lanes are a kit's kick, snare, clap, closed and open hat, low tom, rim and cowbell; its other sounds
+  play from the keys and MIDI by their General MIDI note: kick 2 (B1, 35), snare 2 (E2, 40), the toms (G2, C3), crash
+  (C#3), ride (D#3), conga (D#4), shaker (A#4), clave (D#5). TUNE, TONE, DECY, SNAP, ACC and DRV work on them (read
+  when a sound is hit); KICK does not apply. `FELUCCA_DKITS=0` builds without them.
+
 - **Fewer engines, more room.** SAMPLE (4), SLICE (13), LOFI (3) and VOICE (5) and the built-in sample sets (PIANO,
   FLUTE, SAX, SLICE's BREAK) are left out of the build by default (`FELUCCA_SAMPLE`, `FELUCCA_SLICE`, `FELUCCA_LOFI`,
   `FELUCCA_VOICE` = 0; `=1` brings each back): about 143 KB of flash for new engines and sounds. Their numbers stay

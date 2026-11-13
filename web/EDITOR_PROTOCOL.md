@@ -185,7 +185,10 @@ the name, else the last one with it; an editor should list only the originals an
 it ever sees one. Today: SAMPLE SET and GRAIN SRC 1 and 4 (once TRANH, PERC) = 0 PIANO; DRUM KIT (engine 10, E1)
 1, 2, 3 (once HAND, CYM, H+CYM; 1.0.5) = 6 (66), 5 (10), 8 (77): its names are STD 66 10 77 80 10 66 55 77 (1.5.6,
 #216: then 9 DEEP, 10 TIGHT, 11 PERC, appended; firmware before clamps them to 8, 77), the device's knob steps STD 80 10
-66 55 77 DEEP TIGHT PERC. An editor of before 1.0.5 (first of a name = original) offers 66 10 77
+66 55 77 DEEP TIGHT PERC. This fork (build switch `FELUCCA_DKITS`, on by default) appends SLOOP's synthesised kits: 12 808,
+13 909, 14 606, 15 VINTAGE, 16 TRAP, 17 BOOMBAP, 18 LO-FI, 19 HOUSE, 20 TECHNO, 21 ELECTRO, 22 JUNGLE, 23 LATIN, 24 CHIP,
+25 ARCADE, 26 INDUSTR, 27 JAZZ (append-only: `DESC` gives the names and the range; firmware without them clamps them to 11,
+PERC), and a factory preset for each after PERC KIT (DRUM presets 4..19, `808 KIT` .. `JAZZ KIT`). An editor of before 1.0.5 (first of a name = original) offers 66 10 77
 at 1..3 and hides 6 5 8: what it sets still plays the right kit, and the device answers with 6 5 8.
 
 ## Commands
@@ -307,6 +310,12 @@ numbered 0..31 (the device shows U01..U32).
 - **DRUM KIT 1..3** were HAND, CYM and H+CYM until 1.0.4 (STD with a conga / claves, a cymbal, both). Since 1.0.5
   they play the VA kits 66, 10 and 77, and a record holding one loads as that kit: `UP_GET` / `UP_LOAD` give KIT 6, 5
   or 8 (the record itself is not rewritten). Projects, motion events and `SET` do the same.
+- **DRUM KIT 12..27** (this fork, `FELUCCA_DKITS`) are SLOOP's kits 808 .. JAZZ, each of 16 sounds. A note plays the
+  sound SLOOP's General MIDI map gives it, on the lane Felucca's map gives the note: the grid's lanes (36 38 39 42 46 45
+  37 56) are its KICK SNARE CLAP CHH OHH TOMLO RIM COWBELL, and 35 KICK 2, 40 SNARE 2, 43 / 48 the toms, 49 CRASH, 51
+  RIDE, 63 CONGA, 70 SHAKER, 75 CLAVE play as notes (v5: a NOTE step). Nothing in the protocol changed: the same
+  parameters, `DESC`'s longer list of names. A Program Change on a DRUM track (0.. the kits as KIT steps through them)
+  reaches them at 9..24.
 - `UP_STORE`: name "" stores with the automatic name the device uses (engine name + slot number,
   "ANALOG 07"). rc 1 for a bad slot or name.
 - rc 2 = the flash write failed or there is no flash. A failed flash write keeps the previous

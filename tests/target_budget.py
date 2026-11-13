@@ -20,6 +20,7 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "px_string_excite", "px_string_run", "px_symp_run",
          "dv_metal_run", "dv_kick_run", "dv_snare_run", "dv_clap_run", "dv_hat_run", "dv_tom_run",   # drum_voice.c
          "dv_rim_run", "dv_bell_run", "dv_cym_run", "dv_out", "dv_metal_mix",
+         "drum_syn_run",                                    # DRUM's kits of SLOOP (eng_drum.c; drum_synth.c ds_render inlined)
          "slicer_track",
          "slice_render", "slc_rev",                          # SLICE (eng_slice.c): the render, the reverse windows
          "dco_render",                                      # DCO (eng_dco.c, dco_dsp.c)

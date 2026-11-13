@@ -33,6 +33,7 @@ dv_bell_run 52
 dv_cym_run 67
 dv_out 35
 dv_metal_mix 16
+drum_syn_run 419
 slicer_track 556
 dco_render 489
 t303_block 91

@@ -1052,6 +1052,12 @@ int main(int argc, char **argv)
         snprintf(name, sizeof name, "drums/kit_%s", N_DRUM_KIT[DK_80 + i]);
         add(J_DRUMS, name)->arg = (uint8_t)(DK_80 + i);
     }
+#if FELUCCA_DKITS
+    for (i = 0; i < DS_NKITS; i++) {                /* SLOOP's kits (KIT 808 .. JAZZ, eng_drum.c DK_SYN ..) */
+        snprintf(name, sizeof name, "drums/kit_%s", N_DRUM_KIT[DK_SYN + i]);
+        add(J_DRUMS, name)->arg = (uint8_t)(DK_SYN + i);
+    }
+#endif
     for (i = 0; i < 3u; i++)
         for (k0 = 0; k0 < 4u && eng_ok(MODE_E[i][0]); k0++) {
             job_t *j;
@@ -1132,6 +1138,7 @@ int main(int argc, char **argv)
         j->pi = 0;
         j->arg = (uint8_t)(DK_80 + i);
     }
+    /* (SLOOP's kits, KIT 808 .. JAZZ: each has its preset, costed above with the others) */
     {   /* mixes: idle (subtracted from the presets' counts), idle + drums (part 4 DRUM; SAMPLE PERC until 1.0.2), FM (DIGITAL with
          * FELUCCA_FM4, else FM6) + PHASE + VOICE asking 8 + 8 + 4 + the drums (the budget keeps 8; FM6 plays 6) */
         job_t *j = add(J_CPU, "cpu/mix/idle");

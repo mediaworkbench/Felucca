@@ -86,6 +86,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`, `c
 | `FELUCCA_303` | 1 | the 303 engine (X0X's Open303, `firmware/src/eng_303.c`, `x0x/`) and TB-3PO, its ARP (`0`: engine 15 reserved, no float code) |
 | `FELUCCA_AICD` | 1 | TB-3PO's MODE AICD: Aicd's acid line model (`assets/aicd/lm.js`, ~24 KB of flash as `build/gen/felucca_aicd.h` by `tools/gen_aicd.py`); `0`: no MODEL page, TB-3PO's own lines only |
 | `FELUCCA_DBRAIN` | 1 | a DRUM track's BRAIN pages: DrumBrain's pattern model (`assets/drumbrain/model.js`, ~19 KB of flash as `build/gen/felucca_dbrain.h` by `tools/gen_dbrain.py`); `0`: no such pages |
+| `FELUCCA_DKITS` | 1 | the DRUM engine's kits 808 .. JAZZ (KIT 12 ..) and their presets: SLOOP's synthesised kits and their voice (`firmware/src/drum_synth.c`, ~10.7 KB of flash; the kits as `build/gen/felucca_drumkits.h` by `tools/gen_drumkits.py`, their levels in `tools/drumkit_levels.json`); `0`: DRUM's own kits only (STD .. PERC), its renders as before |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion (a test build: the DCO and 303 engines are left out, the EDIT layer has room for 15) |
 | `FELUCCA_ADPCM` | 0 | upstream's ADPCM engine (`firmware/src/eng_adpcm.c`, upstream's engine 14): kept in the tree, not available in this fork (14 is DCO, 15 the 303); `1` stops the build |
 
@@ -125,6 +126,17 @@ snes_spc 0.9.0 checkout, the ADPCM engine's voice is compared sample for sample 
 (`tests/adpcm_ref.cpp`, needs `c++`); without it the rest of the ADPCM test runs. Felucca-Engines' own test
 (`firmware/engines/tests/run.sh`) runs too, and its standalone host is built once more with Felucca's tables
 against the same golden renders.
+
+The levels of the DRUM engine's kits of SLOOP (808 .. JAZZ) are measured, and `tests/dsyn_test.c` holds them: every sound
+as loud as its lane is on Felucca's own kits (`tests/drum_loud.h` says how). After a change to a kit in
+`tools/gen_drumkits.py`, or a kit added to its `PICK`, level it (twice or more: until it reports no sound moved):
+
+```
+cc -O2 -w -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 -Ifirmware/src -Ibuild/gen \
+    -o build/host/drum_level tests/drum_level.c -lm
+build/host/drum_level > build/host/drum_level.txt && python3 tools/level_drumkits.py build/host/drum_level.txt
+python3 tools/gen_drumkits.py build/gen/felucca_drumkits.h
+```
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU

@@ -72,6 +72,11 @@ static int16_t tb3_tw[NTRK];     /* TWIST (tb3po.c tb3_twist): each 303 track's 
                                   * felucca_dbrain.h, tools/gen_dbrain.py); 0: no such pages */
 #endif
 #define DBRAIN_ON FELUCCA_DBRAIN
+#ifndef FELUCCA_DKITS
+#define FELUCCA_DKITS 1          /* the DRUM engine's kits 808 .. JAZZ (KIT 12 .., eng_drum.c DK_SYN): SLOOP's synthesised kits
+                                  * and their voice (drum_synth.c; build/gen felucca_drumkits.h, tools/gen_drumkits.py),
+                                  * ~9 KB of flash; 0: DRUM's own kits only, the engine as it was */
+#endif
 /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order of engines.c ENGINE_ORDER. DCO
  * (14) and 303 (15) not with FELUCCA_FM4 (a test build of the retired DIGITAL: the EDIT layer's keys hold 15 engines at
  * most, ui_layer.c) */

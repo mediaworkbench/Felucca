@@ -20,7 +20,7 @@ the AC79 SDK checkout (`~/fw-AC79_AIoT_SDK`; `AC79_SDK` / `JIELI_TOOLCHAIN` over
 toolchain is Linux x86-64 only; `tools/build.py` runs each tool in a `linux/amd64` container).
 
 `tools/build.py` first generates headers into `build/gen/` (fonts, icons, keycaps, palettes, `felucca_tables.h`,
-FM6 patches, `felucca_samples.h` from `assets/samples-cc0/`), then compiles, links and runs post-link checks that fail
+FM6 patches, `felucca_samples.h` from `assets/samples-cc0/`, `felucca_drumkits.h`), then compiles, links and runs post-link checks that fail
 the build:
 - `.ram_text` (code that runs with the flash off) must contain no `call`; `.c1_text` (second core) may only call
   through a register; nothing may reference chip ROM addresses.
@@ -95,6 +95,11 @@ sharing a budget of 8 voices (`voice.c`). Engines implement the interface in
 GPL. This fork leaves out SAMPLE (4), LOFI (3), VOICE (5) and SLICE (13) by default (`FELUCCA_SAMPLE` / `_LOFI` / `_VOICE` /
 `_SLICE` = 0, core.h; reserved slots, `ENG_GONE`), and with SAMPLE the built-in sample sets: GRAIN plays USR1..3 only
 (`eng_sample.c` stays built for it). Keep upstream's code under `#if` rather than deleting it, so merges stay clean.
+DRUM (`eng_drum.c`) has two kinds of kit: its own (KIT 0..11, `drum_voice.c`) and SLOOP's synthesised ones (KIT 12..,
+`FELUCCA_DKITS`: `drum_synth.c`, SLOOP's voice kept as SLOOP has it but for the changes its header lists; the kits from
+`tools/gen_drumkits.py`, whose `PICK` is append-only: its order is the stored KIT value). A lane plays the kind it was
+struck with (`drum_lane_t.syn`). Their levels are measured (`tools/level_drumkits.py`, `tests/drum_loud.h`) and
+`tests/dsyn_test.c` fails when a sound is off: level a changed or added kit, do not edit `tools/drumkit_levels.json` by hand.
 DIGITAL (`FELUCCA_FM4`) is retired: engine 1 is reserved and its sounds load as FM6 via `fm4_convert.c`.
 Upstream's ADPCM (`eng_adpcm.c`, upstream's engine 14) is in the tree but has no number in this fork: 14 is DCO, so
 `FELUCCA_ADPCM=1` stops the build (`core.h`); its `#if FELUCCA_ADPCM` blocks are kept as upstream has them for merges.

@@ -166,6 +166,14 @@
 #                   Felucca's targets, the controls' directions, no clipping, DC, retriggers, the hat choke, the
 #                   kick on a small speaker; the DRUM engine (src/eng_drum.c): its key map, the 8 lanes together,
 #                   one hit per lane, the choke between lanes; the cost per voice; demos in build/drum_demo/.
+# DRUM KITS (tests/dsyn_test.c, on the UI sources): the DRUM engine's kits of SLOOP (KIT 808 .. JAZZ, src/drum_synth.c,
+#                   tools/gen_drumkits.py): KIT 12 .. and their presets appended, the 12 before as they were; every kit x
+#                   its 16 sounds heard, without DC, ending; the levels (tests/drum_loud.h: every sound on its lane's
+#                   level on Felucca's own kits, or at the ceiling under it; a bar of the 8 lanes as loud on every kit;
+#                   off: tools/level_drumkits.py); the knobs (64: SLOOP's sound exactly; TUNE DECY TONE SNAP ACC; every
+#                   corner bounded); velocity once; the hat's choke (not the shaker's) and across the kinds of kit; the
+#                   lanes (16 sounds on 8, a lane plays what it was struck with, the part's memory cleared); a project;
+#                   build/drum_demo/kits.wav. Again with FELUCCA_DKITS=0 (the engine as it was) and under ASan / UBSan.
 # NOISE (tests/noise_test.c): the engine (engines/src/eng_noise.c): COLR's slope (white, pink, brown), the filter and the
 #                   register clock following the key, META periodic at the key, no DC, no clipping at the
 #                   corners, a note from silence the same twice, the cost per voice; demos in build/noise_demo/.
@@ -495,6 +503,13 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm
     mkdir -p build/drum_demo
     run "DRUM: voice targets, controls, no clipping, retrigger, hat choke, the kick on a small speaker, keys, 8 lanes, cost, demos" "$OUT/drum_test" build/drum_demo
+    $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/dsyn_test" tests/dsyn_test.c -lm
+    run "DRUM KITS: SLOOP's kits 808 .. JAZZ (KIT 12 .., presets), 16 sounds each, levels, knobs, velocity, choke, lanes, a project, demo" \
+        "$OUT/dsyn_test" build/drum_demo
+    $CC -O1 -w -DFELUCCA_DKITS=0 -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/dsyn_test_off" tests/dsyn_test.c -lm
+    run "DRUM KITS, a FELUCCA_DKITS=0 build: the DRUM engine as it was (12 kits, 4 presets)" "$OUT/dsyn_test_off"
+    $CC -O2 -w -DFELUCCA_DKITS=0 -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test_off" tests/drum_test.c -lm
+    run "DRUM with FELUCCA_DKITS=0: the voices and the engine as above" "$OUT/drum_test_off" build/drum_demo
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/noise_test" tests/noise_test.c -lm
     mkdir -p build/noise_demo
     run "NOISE: colour slopes, key-tracked filter and clock, META period, DC, clipping, retrigger, cost, demos" "$OUT/noise_test" build/noise_demo
@@ -586,7 +601,7 @@ else
     run "ASan/UBSan: update loader (other app -> this build)" "$A/ldr_test" "$OUT/old.fwsc" build/felucca.fwsc
     $SCC -DOWN_PKG=1 -o "$A/ota_test" tests/ota_test.c
     run "ASan/UBSan: M-UPGRADE entry (own loader)" "$A/ota_test" build/felucca.fwsc
-    for t in editor_test project_test backup_test robust_test fun10_test fm6bank_test midi_drift_test; do
+    for t in editor_test project_test backup_test robust_test fun10_test fm6bank_test midi_drift_test dsyn_test; do
         e=""; [ "$t" = project_test ] && e="$ENG_ALL"
         $SCC $e -o "$A/$t" tests/$t.c -lm
         run "ASan/UBSan: $t" "$A/$t"
